@@ -14,7 +14,8 @@ Szczegóły techniczne (formaty plików, opisy skryptów, struktura Bicep): [REF
 4. [Proces B — rebuild-configuration](#proces-b--rebuild-configuration)
 5. [Proces C — update-definitions](#proces-c--update-definitions)
 6. [Proces D — update-assignments](#proces-d--update-assignments)
-7. [Proces F — sync-framework](#proces-f--sync-framework)
+7. [Proces E — cleanup](#proces-e--cleanup)
+8. [Proces F — sync-framework](#proces-f--sync-framework)
 
 ---
 
@@ -316,6 +317,45 @@ Pipeline wykonuje:
 
 # Tylko jedno przypisanie (wdrożenie) — przydatne przy testowaniu lub wdrażaniu po kolei:
 ./scripts/update-assignments.sh --assignment AP2026-04-28_0015 --deploy
+```
+
+---
+
+## Proces E — cleanup
+
+Stosuj gdy chcesz wylistować lub usunąć zasoby polityk zarządzane przez to repozytorium (przypisania, UAMI, definicje, inicjatywy).
+
+> **Domyślnie bezpieczny** — bez `delete=true` pipeline tylko wylistowuje zasoby, nie wprowadza żadnych zmian.
+
+### Krok E1 — Uruchom pipeline cleanup
+
+Uruchom pipeline **`cleanup`** (ręcznie, trigger: none):
+
+| Parametr | Domyślnie | Opis |
+| --- | --- | --- |
+| `targetAssignment` | `*` | Nazwa przypisania do przetworzenia (`*` = wszystkie) |
+| `withDefinitions` | `false` | Usuń też definicje polityk i inicjatywy |
+| `delete` | `false` | `false` = tylko lista (dry-run), `true` = usuń zasoby |
+
+Wymagane zmienne (`configuration/ado-env.yml`): `serviceConnectionName`, `devopsManagedPool` (tak samo jak Pipeline C/D).
+
+### Krok E1 (alternatywnie — uruchom lokalnie)
+
+```bash
+# Wylistuj wszystkie zarządzane zasoby (brak zmian)
+./scripts/cleanup.sh
+
+# Wylistuj włącznie z definicjami i inicjatywami
+./scripts/cleanup.sh --with-definitions
+
+# Usuń przypisania i UAMI (najpierw sprawdź dry-run!)
+./scripts/cleanup.sh --delete
+
+# Usuń wszystko włącznie z definicjami
+./scripts/cleanup.sh --delete --with-definitions
+
+# Ogranicz do pojedynczego przypisania
+./scripts/cleanup.sh -a AP202604290022 --delete
 ```
 
 ---

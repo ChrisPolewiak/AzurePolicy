@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ## [0.3.0] — 2026-06-03
 
 ### Added
+
 - **`pipelines/sync-framework.yml`** — new Pipeline F: syncs framework files (pipelines, scripts, Bicep modules)
   from GitHub `ChrisPolewiak/AzurePolicy` to the ADO repository via `rsync`.
   Preserves local-only paths: `source/own/`, `configurations/`, `scripts/deployment-config.json`,
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
   Supports `dryRun=true` (default, preview only) and `dryRun=false` (commit + push to ADO).
 
 ### Fixed
+
 - **`pipelines/sync-framework.yml`** — multi-repo checkout places `self` under
   `$(Build.SourcesDirectory)/$(Build.Repository.Name)`, not directly at `$(Build.SourcesDirectory)`;
   corrected `rsync` destination and all `git` command paths accordingly.
@@ -34,6 +36,7 @@ All notable changes to this project will be documented in this file.
   and is excluded from `sync-framework.yml` rsync (lives only in the ADO repo).
 
 ### Documentation
+
 - **`README.md`**, **`docs/README.md`**, **`docs/README.pl.md`** — added Process F section with
   full usage instructions and GitHub service connection setup steps.
   Added "Initial ADO setup" section with `ado-env.yml` creation instructions.
@@ -46,11 +49,13 @@ All notable changes to this project will be documented in this file.
 ## [0.2.0] — 2026-06-02
 
 ### Added
+
 - **`pipelines/cleanup.yml`** — new Pipeline E: lists or deletes managed policy resources in Azure
   (assignments, UAMIs, policy definitions, initiatives) via `scripts/cleanup.sh`.
   Safe by default — `delete=false` performs list-only dry-run.
 
 ### Fixed
+
 - **`pipelines/rebuild-configuration.yml`** — staging and cleanup steps used `config/` instead of `generated/`;
   corrected directory names in `mkdir`, `cp` and `rm` operations.
 - **`pipelines/update-assignments.yml`** — artifact restore and cleanup steps used `config/` instead of `generated/`.
@@ -62,6 +67,7 @@ All notable changes to this project will be documented in this file.
   Each result now shows the MG it belongs to (`[MG: ...]`).
 
 ### Changed
+
 - **`pipelines/update-definitions.yml`** — optional parameters `targetInitiative` and `targetDefinition`
   now default to `'*'` (deploy all) instead of `''`, fixing the ADO UI "Required" flag.
   Bash conditions updated from `[[ -n '...' ]]` to `[[ '...' != '*' ]]`.
@@ -73,6 +79,7 @@ All notable changes to this project will be documented in this file.
 ## [0.1.0] — 2026-05-XX
 
 ### Added
+
 - **`configuration/`** directory as the canonical location for runtime configuration and source files.
 - **`configuration/deployment-config.example.json`** — template showing all supported keys
   including `sourceFiles.assignments`, `sourceFiles.parameters`, `paths.*`, `identityDefaults.*`.
@@ -81,6 +88,7 @@ All notable changes to this project will be documented in this file.
   replaces the former `config/` directory.
 
 ### Changed
+
 - Excel and TSV source files moved from `docs/` to `configuration/`:
   `ALZPolicyAssignments.xlsx`, `policy-assignments.tsv`, `policy-parameters.tsv`.
 - **`scripts/generate_config_from_table.py`** — hardcoded fallback paths updated from
@@ -94,6 +102,7 @@ All notable changes to this project will be documented in this file.
 ## [0.0.2] — 2026-05-XX
 
 ### Added
+
 - **`source/own/`** directory (renamed from `custom/`) for custom policy definitions
   and policy set definitions managed outside the ALZ snapshot.
 - `Type2=Own` support in TSV filter logic (`generate_config_from_table.py`).
@@ -102,6 +111,7 @@ All notable changes to this project will be documented in this file.
   by custom initiatives.
 
 ### Changed
+
 - `custom/policyDefinitions/` → `source/own/policyDefinitions/` (physical rename).
 - `deployment-config.json` `paths.customDir` updated to `source/own`.
 
@@ -110,6 +120,7 @@ All notable changes to this project will be documented in this file.
 ## [0.0.1] — 2026-04-XX
 
 ### Added
+
 - Initial Policy as Code structure with four ADO pipelines:
   - **A** `fetch-policies` — fetches ALZ snapshot from GitHub.
   - **B** `rebuild-configuration` — generates ARM JSON + config JSON, publishes artifact.

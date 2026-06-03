@@ -14,7 +14,8 @@ Technical details (file formats, script descriptions, Bicep structure): [REFEREN
 4. [Process B — rebuild-configuration](#process-b--rebuild-configuration)
 5. [Process C — update-definitions](#process-c--update-definitions)
 6. [Process D — update-assignments](#process-d--update-assignments)
-7. [Process F — sync-framework](#process-f--sync-framework)
+7. [Process E — cleanup](#process-e--cleanup)
+8. [Process F — sync-framework](#process-f--sync-framework)
 
 ---
 
@@ -312,6 +313,45 @@ The pipeline:
 
 # Single assignment only (deploy) — useful for testing or rolling out one by one:
 ./scripts/update-assignments.sh --assignment AP2026-04-28_0015 --deploy
+```
+
+---
+
+## Process E — cleanup
+
+Use to list or delete policy resources managed by this repo (assignments, UAMIs, definitions, initiatives).
+
+> **Safe by default** — without `delete=true` the pipeline only lists resources, no changes are made.
+
+### Step E1 — Run the cleanup pipeline
+
+Run the **`cleanup`** pipeline (manually, trigger: none):
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `targetAssignment` | `*` | Assignment name to process (`*` = all) |
+| `withDefinitions` | `false` | Also remove policy definitions and initiatives |
+| `delete` | `false` | `false` = list only (dry-run), `true` = delete resources |
+
+Required variables (`configuration/ado-env.yml`): `serviceConnectionName`, `devopsManagedPool` (same as Pipeline C/D).
+
+### Step E1 (alternative — run locally)
+
+```bash
+# List all managed resources (no changes)
+./scripts/cleanup.sh
+
+# List including definitions and initiatives
+./scripts/cleanup.sh --with-definitions
+
+# Delete assignments and UAMIs (dry-run first!)
+./scripts/cleanup.sh --delete
+
+# Delete everything including definitions
+./scripts/cleanup.sh --delete --with-definitions
+
+# Scope to single assignment
+./scripts/cleanup.sh -a AP202604290022 --delete
 ```
 
 ---
