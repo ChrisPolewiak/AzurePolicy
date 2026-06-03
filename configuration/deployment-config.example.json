@@ -1,0 +1,46 @@
+{
+  "managementTag": "contoso-policy-by-code",
+  "deployment": {
+    "location": "<LOCATION_FOR_DEPLOYMENT>",
+    "definitionManagementGroupId": "<YOUR_ROOT_MANAGEMENT_GROUP_ID>"
+  },
+  "identityDefaults": {
+    "type": "UserAssigned",
+    "subscriptionId": "<YOUR_IDENTITY_SUBSCRIPTION_ID>",
+    "resourceGroup": "<YOUR_IDENTITY_RESOURCE_GROUP>",
+    "location": "<LOCATION_FOR_DEPLOYMENT>",
+    "tags": {
+      "managedBy": "contoso-policy-by-code",
+      "resourcePurpose": "azure-policy-assignment-identity",
+      "cleanupHint": "safe-to-delete-with-assignment",
+      "sourceRepo": ""
+    }
+  },  
+  "paths": {
+    "configDir": "generated",
+    "sourceDir": "source/EnterpriseALZ",
+    "bicepDir": "bicep",
+    "docsDir": "docs",
+    "customDir": "source/own"
+  },
+  "sourceFiles": {
+    "assignments": "configuration/policy-assignments.tsv",
+    "assignmentsFallback": "configuration/policy-assignments.csv",
+    "parameters": "configuration/policy-parameters.tsv",
+    "parametersFallback": "configuration/policy-parameters.csv"
+  },
+  "outputFiles": {
+    "initiatives": "generated/initiatives.json",
+    "assignments": "generated/assignments.json",
+    "parameters": "generated/parameters.json"
+  },
+  "bicepTemplates": {
+    "policyDefinitions": "bicep/policyDefinitions",
+    "policySetDefinitions": "bicep/policySetDefinitions",
+    "assignments": "bicep/assignments.bicep",
+    "policyAssignmentManagementGroup": "bicep/policyAssignmentManagementGroup.bicep",
+    "policyAssignmentSubscription": "bicep/policyAssignmentSubscription.bicep"
+  },
+  "description": "Configuration for Azure Policy-as-Code deployment generator",
+  "version": "1.0.0"
+}

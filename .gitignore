@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+
+# Temporary Office files
+docs/~$*.*
+
+# Central deployment configuration — contains environment-specific IDs and paths
+# configuration/*
+# !configuration/README.md
+# !configuration/deployment-config.example.json
+
+# Policy snapshot fetched from GitHub (Pipeline A artifact)
+source/EnterpriseALZ/*
+
+# Generated ARM JSON templates (Pipeline B artifact)
+bicep/policyDefinitions/
+bicep/policySetDefinitions/
+generated/*.json
+
+# Internal development notes — not for release
+PROGRESS.md

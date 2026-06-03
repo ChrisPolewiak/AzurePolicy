@@ -1,0 +1,67 @@
+trigger: none
+pr: none
+
+parameters:
+- name: targetAssignment
+  type: string
+  default: '*'
+  displayName: 'Assignment name to process (* = all)'
+- name: withDefinitions
+  type: boolean
+  default: false
+  displayName: 'Also remove policy definitions and initiatives'
+- name: delete
+  type: boolean
+  default: false
+  displayName: 'Delete resources (false = list only / dry-run)'
+
+variables:
+- group: 'AzureDevOps'
+
+pool:
+  name: $(devopsManagedPool)
+
+steps:
+- checkout: self
+  persistCredentials: false
+
+- bash: |
+    set -euo pipefail
+    if [[ -z "$(devopsManagedPool)" ]]; then
+      echo "ERROR: Missing variable 'devopsManagedPool' in Library Variable Group 'AzureDevOps'."
+      exit 1
+    fi
+    if [[ -z "$(serviceConnectionName)" ]]; then
+      echo "ERROR: Missing variable 'serviceConnectionName' in Library Variable Group 'AzureDevOps'."
+      exit 1
+    fi
+    echo "Variable precheck passed."
+  displayName: 'Precheck required Library variables'
+
+- task: AzureCLI@2
+  displayName: 'Cleanup policy resources in Azure'
+  inputs:
+    azureSubscription: '$(serviceConnectionName)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      echo "Azure authenticated context:"
+      az account show --query "{tenantId:tenantId, subscriptionId:id, subscriptionName:name}" -o table
+
+      chmod +x scripts/cleanup.sh
+      args=()
+
+      if [[ '${{ parameters.targetAssignment }}' != '*' ]]; then
+        args+=(-a '${{ parameters.targetAssignment }}')
+      fi
+
+      if [[ '${{ parameters.withDefinitions }}' == 'True' ]]; then
+        args+=(--with-definitions)
+      fi
+
+      if [[ '${{ parameters.delete }}' == 'True' ]]; then
+        args+=(--delete)
+      fi
+
+      scripts/cleanup.sh "${args[@]}"

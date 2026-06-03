@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-08-01/managementGroupDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "149482297759122077"
+    }
+  },
+  "parameters": {
+    "assignment": {
+      "type": "object"
+    },
+    "parameterSet": {
+      "type": "object"
+    },
+    "definitionManagementGroupId": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "targetsPolicyDefinition": "[contains(parameters('assignment'), 'policyDefinitionName')]",
+    "policyDefinitionId": "[if(contains(parameters('assignment'), 'policyDefinitionId'), string(parameters('assignment').policyDefinitionId), if(variables('targetsPolicyDefinition'), format('/providers/Microsoft.Management/managementGroups/{0}/providers/Microsoft.Authorization/policyDefinitions/{1}', parameters('definitionManagementGroupId'), parameters('assignment').policyDefinitionName), format('/providers/Microsoft.Management/managementGroups/{0}/providers/Microsoft.Authorization/policySetDefinitions/{1}', parameters('definitionManagementGroupId'), parameters('assignment').initiativeName)))]"
+  },
+  "resources": [
+    {
+      "condition": "[contains(parameters('assignment'), 'identity')]",
+      "type": "Microsoft.Authorization/policyAssignments",
+      "apiVersion": "2024-04-01",
+      "name": "[string(parameters('assignment').name)]",
+      "location": "[string(coalesce(tryGet(parameters('assignment'), 'location'), 'germanywestcentral'))]",
+      "identity": "[parameters('assignment').identity]",
+      "properties": {
+        "displayName": "[string(coalesce(tryGet(parameters('assignment'), 'displayName'), parameters('assignment').name))]",
+        "description": "[string(coalesce(tryGet(parameters('assignment'), 'description'), ''))]",
+        "metadata": "[coalesce(tryGet(parameters('assignment'), 'metadata'), createObject())]",
+        "policyDefinitionId": "[variables('policyDefinitionId')]",
+        "enforcementMode": "[string(coalesce(tryGet(parameters('assignment'), 'enforcementMode'), 'Default'))]",
+        "parameters": "[parameters('parameterSet')]"
+      }
+    },
+    {
+      "condition": "[not(contains(parameters('assignment'), 'identity'))]",
+      "type": "Microsoft.Authorization/policyAssignments",
+      "apiVersion": "2024-04-01",
+      "name": "[string(parameters('assignment').name)]",
+      "properties": {
+        "displayName": "[string(coalesce(tryGet(parameters('assignment'), 'displayName'), parameters('assignment').name))]",
+        "description": "[string(coalesce(tryGet(parameters('assignment'), 'description'), ''))]",
+        "metadata": "[coalesce(tryGet(parameters('assignment'), 'metadata'), createObject())]",
+        "policyDefinitionId": "[variables('policyDefinitionId')]",
+        "enforcementMode": "[string(coalesce(tryGet(parameters('assignment'), 'enforcementMode'), 'Default'))]",
+        "parameters": "[parameters('parameterSet')]"
+      }
+    }
+  ]
+}

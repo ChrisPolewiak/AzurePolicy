@@ -1,0 +1,34 @@
+trigger: none
+pr: none
+
+parameters:
+- name: policyVersion
+  type: string
+  default: 'main'
+  displayName: 'Azure Policy version (tag or commit SHA)'
+
+variables:
+- group: 'AzureDevOps'
+
+pool:
+  name: $(devopsManagedPool)
+
+steps:
+- checkout: self
+  persistCredentials: false
+
+- bash: |
+    set -euo pipefail
+    chmod +x scripts/fetch-policies.sh
+    scripts/fetch-policies.sh "${{ parameters.policyVersion }}"
+  displayName: 'Fetch Azure Policy snapshot from GitHub'
+
+- publish: source
+  artifact: policy-source
+  displayName: 'Publish artifact: policy-source'
+
+- bash: |
+    set -euo pipefail
+    rm -rf source
+  displayName: 'Cleanup workspace'
+  condition: always()
