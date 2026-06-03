@@ -15,9 +15,9 @@ resources:
   repositories:
   - repository: framework
     type: github
-    endpoint: github-framework          # Service connection name in ADO
-    name: ChrisPolewiak/AzurePolicy     # GitHub repo (org/repo)
-    ref: refs/heads/main                # Default ref — overridden at runtime by frameworkVersion
+    endpoint: sc-chrispolewiak-github-azurepolicy  # Service connection name in ADO
+    name: ChrisPolewiak/AzurePolicy                # GitHub repo (org/repo)
+    ref: refs/heads/main                           # Default ref — overridden at runtime by frameworkVersion
 
 variables:
 - group: 'AzureDevOps'
