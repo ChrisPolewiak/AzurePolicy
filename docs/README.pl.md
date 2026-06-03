@@ -68,13 +68,15 @@ Szczegóły techniczne (formaty plików, opisy skryptów, struktura Bicep): [REF
 
 ## Konfiguracja początkowa ADO (jednorazowo)
 
-Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalny plik zmiennych w repozytorium ADO:
+Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalne pliki konfiguracyjne w repozytorium ADO:
 
 1. Skopiuj `configuration/ado-env.example.yml` jako `configuration/ado-env.yml`.
 2. Uzupełnij wartości:
    - `devopsManagedPool` — nazwa puli agentów ADO (np. `Default` lub pula self-hosted).
    - `serviceConnectionName` — nazwa Azure DevOps service connection do zadań Azure CLI.
-3. Plik jest w `.gitignore` — pozostaje tylko w repozytorium ADO, nigdy nie trafia na GitHub.
+3. Skopiuj `pipelines/sync-framework.example.yml` jako `pipelines/sync-framework.yml`.
+4. W pliku `sync-framework.yml` ustaw pole `endpoint:` na nazwę swojego GitHub service connection w ADO.
+5. Oba pliki są w `.gitignore` — pozostają tylko w repozytorium ADO, nigdy nie trafiają na GitHub.
 
 > Konfiguracja service connection: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
 > Nadaj mu uprawnienia **Contributor** + **User Access Administrator** na poziomie Management Group.
@@ -338,11 +340,11 @@ Kroki:
 2. Wybierz **GitHub**.
 3. Wybierz metodę uwierzytelnienia — rekomendowana: **GitHub App** lub **Personal Access Token (PAT)**.
    - PAT wymaga co najmniej zakresu `repo` (odczyt).
-4. W polu **Service connection name** wpisz dokładnie: `sc-chrispolewiak-github-azurepolicy`
+4. W polu **Service connection name** wpisz dowolną nazwę (zgodną z Twoją polityką nazewnictwa).
 5. Zaznacz **Grant access permission to all pipelines** (lub ogranicz do pipeline `sync-framework`).
 6. Zapisz.
 
-> Nazwa `sc-chrispolewiak-github-azurepolicy` jest zakodowana na stałe w `pipelines/sync-framework.yml` — musi się zgadzać dokładnie.
+Następnie zaktualizuj pole `endpoint:` w lokalnym pliku `pipelines/sync-framework.yml` tak, by zgadzało się z wybraną nazwą.
 
 ### Krok F1 — Uruchom pipeline sync-framework
 

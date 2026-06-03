@@ -16,14 +16,17 @@ All notable changes to this project will be documented in this file.
   Preserves local-only paths: `source/own/`, `configurations/`, `scripts/deployment-config.json`,
   `docs/*.tsv / *.csv / *.xlsx / *.xls`.
   Supports `dryRun=true` (default, preview only) and `dryRun=false` (commit + push to ADO).
-  Requires GitHub service connection `sc-chrispolewiak-github-azurepolicy` in ADO Project Settings.
 
 ### Fixed
 - **`pipelines/sync-framework.yml`** — multi-repo checkout places `self` under
   `$(Build.SourcesDirectory)/$(Build.Repository.Name)`, not directly at `$(Build.SourcesDirectory)`;
   corrected `rsync` destination and all `git` command paths accordingly.
 
-### Added (continued)
+- **`pipelines/sync-framework.example.yml`** — `sync-framework.yml` converted to gitignored local file
+  (same pattern as `ado-env.yml`). ADO `resources:` evaluates before any variables or parameters,
+  making the `endpoint:` field a literal-only value. Users copy the example, set their own service connection name,
+  and the file is never overwritten by framework syncs.
+  `pipelines/sync-framework.yml` added to `.gitignore` and untracked from git.
 - **`configuration/ado-env.example.yml`** — committed template for the gitignored `configuration/ado-env.yml`.
   Contains `devopsManagedPool` and `serviceConnectionName`.
   Replaces the former ADO Library Variable Group `AzureDevOps` pattern.

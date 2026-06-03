@@ -56,5 +56,6 @@ Pipeline do synchronizacji plików szkieletu (framework) z repozytorium GitHub (
 ### Wymagania
 
 - Zmienna `devopsManagedPool` w `configuration/ado-env.yml`.
-- Service connection GitHub w ADO (żądany typ: GitHub). Nazwa podawana jako parametr `githubServiceConnection` przy uruchomieniu (domyślnie: `sc-chrispolewiak-github-azurepolicy`).
+- Plik `pipelines/sync-framework.yml` (gitignored) — skopiuj z `pipelines/sync-framework.example.yml` i ustaw własną nazwę service connection w polu `endpoint:`.
+- Service connection GitHub w ADO (typ: GitHub) o nazwie zgodnej z `endpoint:` w Twoim `sync-framework.yml`.
 - Agent musi mieć zainstalowane `rsync`.

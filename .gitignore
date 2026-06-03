@@ -12,6 +12,9 @@ docs/~$*.*
 # ADO environment variables — contains org/project-specific pool and service connection names
 configuration/ado-env.yml
 
+# Sync-framework pipeline — contains hardcoded GitHub service connection name (cannot use variables in resources:)
+pipelines/sync-framework.yml
+
 # Policy snapshot fetched from GitHub (Pipeline A artifact)
 source/EnterpriseALZ/*
 

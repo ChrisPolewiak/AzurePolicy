@@ -68,13 +68,15 @@ Technical details (file formats, script descriptions, Bicep structure): [REFEREN
 
 ## Initial ADO setup (one-time)
 
-Before running any pipeline, create a local variable file in your ADO repository:
+Before running any pipeline, create local configuration files in your ADO repository:
 
 1. Copy `configuration/ado-env.example.yml` to `configuration/ado-env.yml`.
 2. Fill in your values:
    - `devopsManagedPool` — name of your ADO agent pool (e.g. `Default` or a self-hosted pool).
    - `serviceConnectionName` — name of the Azure DevOps service connection for Azure CLI tasks.
-3. The file is in `.gitignore` — it stays in your ADO repo only and is never committed to GitHub.
+3. Copy `pipelines/sync-framework.example.yml` to `pipelines/sync-framework.yml`.
+4. In `sync-framework.yml`, set `endpoint:` to the name of your GitHub service connection in ADO.
+5. Both files are in `.gitignore` — they stay in your ADO repo only and are never committed to GitHub.
 
 > Service connection setup: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
 > Assign it **Contributor** + **User Access Administrator** at Management Group scope.
@@ -334,11 +336,11 @@ Steps:
 2. Select **GitHub**.
 3. Choose authentication method — recommended: **GitHub App** or **Personal Access Token (PAT)**.
    - PAT requires at least `repo` (read) scope.
-4. Set the **Service connection name** to exactly: `sc-chrispolewiak-github-azurepolicy`
+4. Set the **Service connection name** — can be any name (your naming convention).
 5. Check **Grant access permission to all pipelines** (or limit to the `sync-framework` pipeline).
 6. Save.
 
-> The name `sc-chrispolewiak-github-azurepolicy` is hardcoded in `pipelines/sync-framework.yml` — it must match exactly.
+Then update `endpoint:` in your local `pipelines/sync-framework.yml` to match the name you chose.
 
 ### Step F1 — Run the sync-framework pipeline
 
