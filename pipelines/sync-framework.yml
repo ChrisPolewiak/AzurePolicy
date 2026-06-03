@@ -47,11 +47,11 @@ steps:
       --exclude='docs/*.csv' \
       --exclude='docs/*.xlsx' \
       --exclude='docs/*.xls' \
-      $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/
+      $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/$(Build.Repository.Name)/
 
     echo "##[section]Changes after sync:"
-    git -C $(Build.SourcesDirectory) status
-    git -C $(Build.SourcesDirectory) diff --stat HEAD
+    git -C "$(Build.SourcesDirectory)/$(Build.Repository.Name)" status
+    git -C "$(Build.SourcesDirectory)/$(Build.Repository.Name)" diff --stat HEAD
   displayName: 'Sync framework from GitHub'
 
 - bash: |
@@ -71,6 +71,7 @@ steps:
     git push origin HEAD:$(Build.SourceBranchName)
 
     echo "##[section]Sync committed and pushed."
+  workingDirectory: $(Build.SourcesDirectory)/$(Build.Repository.Name)
   displayName: 'Commit and push sync to ADO'
   condition: and(succeeded(), eq('${{ parameters.dryRun }}', 'false'))
 
@@ -79,5 +80,6 @@ steps:
     echo "Run with dryRun=false to apply."
     git status
     git diff HEAD
+  workingDirectory: $(Build.SourcesDirectory)/$(Build.Repository.Name)
   displayName: 'Dry run summary (no commit)'
   condition: and(succeeded(), eq('${{ parameters.dryRun }}', 'true'))
