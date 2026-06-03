@@ -10,12 +10,16 @@ parameters:
   type: boolean
   default: true
   displayName: 'Dry run (preview changes without committing)'
+- name: githubServiceConnection
+  type: string
+  default: 'sc-chrispolewiak-github-azurepolicy'
+  displayName: 'GitHub service connection name in ADO'
 
 resources:
   repositories:
   - repository: framework
     type: github
-    endpoint: sc-chrispolewiak-github-azurepolicy  # Service connection name in ADO
+    endpoint: ${{ parameters.githubServiceConnection }}
     name: ChrisPolewiak/AzurePolicy                # GitHub repo (org/repo)
     ref: refs/heads/main                           # Default ref — overridden at runtime by frameworkVersion
 
