@@ -11,6 +11,14 @@ parameters:
   default: true
   displayName: 'Dry run (preview changes without committing)'
 
+resources:
+  repositories:
+  - repository: framework
+    type: github
+    endpoint: github-framework          # Service connection name in ADO
+    name: ChrisPolewiak/AzurePolicy     # GitHub repo (org/repo)
+    ref: refs/heads/main                # Default ref — overridden at runtime by frameworkVersion
+
 variables:
 - group: 'AzureDevOps'
 
@@ -22,16 +30,11 @@ steps:
   persistCredentials: true
   fetchDepth: 0
 
+- checkout: framework
+  path: _framework_tmp
+
 - bash: |
     set -euo pipefail
-
-    echo "##[section]Cloning framework from GitHub (version: ${{ parameters.frameworkVersion }})"
-
-    git clone \
-      --depth 1 \
-      --branch "${{ parameters.frameworkVersion }}" \
-      "$(githubFrameworkUrl)" \
-      _framework_tmp
 
     echo "##[section]Syncing framework files (excluding local overrides)"
 
@@ -44,14 +47,11 @@ steps:
       --exclude='docs/*.csv' \
       --exclude='docs/*.xlsx' \
       --exclude='docs/*.xls' \
-      _framework_tmp/ ./
-
-    echo "##[section]Cleanup temp clone"
-    rm -rf _framework_tmp
+      $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/
 
     echo "##[section]Changes after sync:"
-    git status
-    git diff --stat HEAD
+    git -C $(Build.SourcesDirectory) status
+    git -C $(Build.SourcesDirectory) diff --stat HEAD
   displayName: 'Sync framework from GitHub'
 
 - bash: |
