@@ -9,6 +9,9 @@ docs/~$*.*
 # !configuration/README.md
 # !configuration/deployment-config.example.json
 
+# ADO environment variables — contains org/project-specific pool and service connection names
+configuration/ado-env.yml
+
 # Policy snapshot fetched from GitHub (Pipeline A artifact)
 source/EnterpriseALZ/*
 

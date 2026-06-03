@@ -1,0 +1,22 @@
+# configuration/ado-env.example.yml
+#
+# Template for ADO environment-specific variables used by all pipelines.
+#
+# SETUP (one-time, per ADO project):
+#   Copy this file to configuration/ado-env.yml and fill in your values.
+#   ado-env.yml is in .gitignore — it lives only in your ADO repository, never on GitHub.
+#
+# REFERENCED BY: all pipelines via:
+#   variables:
+#   - template: ../configuration/ado-env.yml
+
+variables:
+
+  # Name of the Azure DevOps agent pool used by all pipelines.
+  # Example: 'Default', 'ubuntu-latest' (Microsoft-hosted), or your self-hosted pool name.
+  devopsManagedPool: 'YOUR_AGENT_POOL_NAME'
+
+  # Name of the Azure DevOps service connection used by AzureCLI@2 tasks.
+  # Must have Contributor + User Access Administrator rights at tenant/MG scope.
+  # Created in: ADO Project Settings → Service connections → New service connection → Azure Resource Manager.
+  serviceConnectionName: 'YOUR_AZURE_SERVICE_CONNECTION_NAME'

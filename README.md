@@ -9,10 +9,13 @@ Technical details (file formats, script descriptions, Bicep structure): [REFEREN
 ## Table of Contents
 
 1. [Repository structure](#repository-structure)
-2. [Process A — fetch-policies](#process-a--fetch-policies)
-3. [Process B — rebuild-configuration](#process-b--rebuild-configuration)
-4. [Process C — update-initiatives](#process-c--update-initiatives)
-5. [Process D — update-assignments](#process-d--update-assignments)
+2. [Initial ADO setup](#initial-ado-setup-one-time)
+3. [Process A — fetch-policies](#process-a--fetch-policies)
+4. [Process B — rebuild-configuration](#process-b--rebuild-configuration)
+5. [Process C — update-initiatives](#process-c--update-initiatives)
+6. [Process D — update-assignments](#process-d--update-assignments)
+7. [Process E — cleanup](#process-e--cleanup)
+8. [Process F — sync-framework](#process-f--sync-framework)
 
 ---
 
@@ -62,6 +65,21 @@ Technical details (file formats, script descriptions, Bicep structure): [REFEREN
 │   └── validate-config.sh               # Validates config/*.json correctness before deployment
 └── REFERENCE.md                          # Technical documentation
 ```
+
+---
+
+## Initial ADO setup (one-time)
+
+Before running any pipeline, create a local variable file in your ADO repository:
+
+1. Copy `configuration/ado-env.example.yml` to `configuration/ado-env.yml`.
+2. Fill in your values:
+   - `devopsManagedPool` — name of your ADO agent pool (e.g. `Default` or a self-hosted pool).
+   - `serviceConnectionName` — name of the Azure DevOps service connection for Azure CLI tasks.
+3. The file is in `.gitignore` — it stays in your ADO repo only and is never committed to GitHub.
+
+> Service connection setup: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
+> Assign it **Contributor** + **User Access Administrator** at Management Group scope.
 
 ---
 
@@ -174,7 +192,7 @@ Run the **`update-definitions`** pipeline (manually, trigger: none):
 | `deployPolicyDefinitions` | `true` | Deploy policy definitions phase |
 | `deployInitiatives` | `true` | Deploy initiative definitions phase |
 
-Required Library variables (Variable Group `AzureDevOps`):
+Required variables (`configuration/ado-env.yml`):
 
 - `serviceConnectionName` — Azure DevOps service connection used by `AzureCLI@2` (`azureSubscription`).
 - `devopsManagedPool` — agent pool name used by the pipeline (`pool.name`).
@@ -257,7 +275,7 @@ Run the **`update-assignments`** pipeline (manually, trigger: none):
 | `deployPolicies` | `false` | Whether to deploy assignments to Azure (`false` = what-if only) |
 | `targetAssignment` | `*` | Assignment name to process (`*` = all) |
 
-Required Library variables (Variable Group `AzureDevOps`):
+Required variables (`configuration/ado-env.yml`):
 
 - `serviceConnectionName` — Azure DevOps service connection used by `AzureCLI@2` (`azureSubscription`).
 - `devopsManagedPool` — agent pool name used by the pipeline (`pool.name`).
@@ -317,7 +335,7 @@ Run the **`cleanup`** pipeline (manually, trigger: none):
 | `withDefinitions` | `false` | Also remove policy definitions and initiatives |
 | `delete` | `false` | `false` = list only (dry-run), `true` = delete resources |
 
-Required Library variables: `serviceConnectionName`, `devopsManagedPool` (same as Pipeline C/D).
+Required variables (`configuration/ado-env.yml`): `serviceConnectionName`, `devopsManagedPool` (same as Pipeline C/D).
 
 ### Step E1 (alternative — run locally)
 
@@ -337,6 +355,57 @@ Required Library variables: `serviceConnectionName`, `devopsManagedPool` (same a
 # Scope to single assignment
 ./scripts/cleanup.sh -a AP202604290022 --delete
 ```
+
+---
+
+## Process F — sync-framework
+
+Use when a new version of the framework (pipelines, scripts, Bicep modules) is released on GitHub and you want to pull it into the ADO repository, without overwriting your local configuration.
+
+> This pipeline syncs **framework files only** — it never touches `source/own/`, `configurations/`, `scripts/deployment-config.json`, nor local data exports in `docs/`.
+
+### Prerequisite — GitHub service connection
+
+Before the pipeline can be run for the first time, create a **GitHub service connection** in Azure DevOps with the exact name expected by the pipeline:
+
+```
+sc-chrispolewiak-github-azurepolicy
+```
+
+Steps:
+
+1. In ADO, go to **Project Settings → Service connections → New service connection**.
+2. Select **GitHub**.
+3. Choose authentication method — recommended: **GitHub App** or **Personal Access Token (PAT)**.
+   - PAT requires at least `repo` (read) scope for public repos, or `repo` for private.
+4. Set the **Service connection name** to exactly: `sc-chrispolewiak-github-azurepolicy`
+5. Check **Grant access permission to all pipelines** (or limit to the `sync-framework` pipeline).
+6. Save.
+
+> The name `sc-chrispolewiak-github-azurepolicy` is hardcoded in `pipelines/sync-framework.yml` — it must match exactly.
+
+### Step F1 — Run the sync-framework pipeline
+
+Run the **`sync-framework`** pipeline (manually, trigger: none):
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `frameworkVersion` | `main` | Tag or branch from GitHub `ChrisPolewiak/AzurePolicy` |
+| `dryRun` | `true` | `true` = preview only (no commit), `false` = commit and push to ADO |
+
+The pipeline:
+
+1. Checks out the ADO repository (`self`) with `persistCredentials: true`.
+2. Checks out the GitHub repository (`framework`) to `_framework_tmp`.
+3. Runs `rsync` — copies files from GitHub to ADO, **excluding** local-only paths:
+   - `source/own/` — własne definicje polityk
+   - `configurations/` — lokalna konfiguracja wdrożeń
+   - `scripts/deployment-config.json`
+   - `docs/*.tsv`, `docs/*.csv`, `docs/*.xlsx`, `docs/*.xls`
+4. If `dryRun=false`: commits and pushes changes with message `chore: sync framework <version> from GitHub [skip ci]`.
+5. If `dryRun=true` (default): displays `git status` and `git diff --stat HEAD` without committing.
+
+> **Tip:** Always run with `dryRun=true` first to review what would change before committing.
 
 ---
 

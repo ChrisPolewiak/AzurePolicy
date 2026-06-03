@@ -9,10 +9,12 @@ Szczegóły techniczne (formaty plików, opisy skryptów, struktura Bicep): [REF
 ## Spis treści
 
 1. [Struktura repozytorium](#struktura-repozytorium)
-2. [Proces A — fetch-policies](#proces-a--fetch-policies)
-3. [Proces B — rebuild-configuration](#proces-b--rebuild-configuration)
-4. [Proces C — update-definitions](#proces-c--update-definitions)
-5. [Proces D — update-assignments](#proces-d--update-assignments)
+2. [Konfiguracja początkowa ADO](#konfiguracja-początkowa-ado-jednorazowo)
+3. [Proces A — fetch-policies](#proces-a--fetch-policies)
+4. [Proces B — rebuild-configuration](#proces-b--rebuild-configuration)
+5. [Proces C — update-definitions](#proces-c--update-definitions)
+6. [Proces D — update-assignments](#proces-d--update-assignments)
+7. [Proces F — sync-framework](#proces-f--sync-framework)
 
 ---
 
@@ -61,6 +63,21 @@ Szczegóły techniczne (formaty plików, opisy skryptów, struktura Bicep): [REF
 │   └── validate-config.sh                # Waliduje poprawność generated/*.json przed wdrożeniem
 └── REFERENCE.md                          # Dokumentacja techniczna
 ```
+
+---
+
+## Konfiguracja początkowa ADO (jednorazowo)
+
+Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalny plik zmiennych w repozytorium ADO:
+
+1. Skopiuj `configuration/ado-env.example.yml` jako `configuration/ado-env.yml`.
+2. Uzupełnij wartości:
+   - `devopsManagedPool` — nazwa puli agentów ADO (np. `Default` lub pula self-hosted).
+   - `serviceConnectionName` — nazwa Azure DevOps service connection do zadań Azure CLI.
+3. Plik jest w `.gitignore` — pozostaje tylko w repozytorium ADO, nigdy nie trafia na GitHub.
+
+> Konfiguracja service connection: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
+> Nadaj mu uprawnienia **Contributor** + **User Access Administrator** na poziomie Management Group.
 
 ---
 
@@ -173,7 +190,7 @@ Uruchom pipeline **`update-definitions`** (ręcznie, trigger: none):
 | `deployPolicyDefinitions` | `true` | Wdrażaj etap definicji polityk |
 | `deployInitiatives` | `true` | Wdrażaj etap definicji inicjatyw |
 
-Wymagane zmienne z Library (Variable Group `AzureDevOps`):
+Wymagane zmienne (`configuration/ado-env.yml`):
 
 - `serviceConnectionName` — nazwa Azure DevOps service connection używanej przez `AzureCLI@2` (`azureSubscription`).
 - `devopsManagedPool` — nazwa puli agentów używanej przez pipeline (`pool.name`).
@@ -256,7 +273,7 @@ Uruchom pipeline **`update-assignments`** (ręcznie, trigger: none):
 | `deployPolicies` | `false` | Czy wdrożyć przypisania do Azure (`false` = tylko what-if) |
 | `targetAssignment` | `''` | Opcjonalnie: przetwarzaj tylko jedną nazwę przypisania |
 
-Wymagane zmienne z Library (Variable Group `AzureDevOps`):
+Wymagane zmienne (`configuration/ado-env.yml`):
 
 - `serviceConnectionName` — nazwa Azure DevOps service connection używanej przez `AzureCLI@2` (`azureSubscription`).
 - `devopsManagedPool` — nazwa puli agentów używanej przez pipeline (`pool.name`).
@@ -298,6 +315,57 @@ Pipeline wykonuje:
 # Tylko jedno przypisanie (wdrożenie) — przydatne przy testowaniu lub wdrażaniu po kolei:
 ./scripts/update-assignments.sh --assignment AP2026-04-28_0015 --deploy
 ```
+
+---
+
+## Proces F — sync-framework
+
+Stosuj gdy w repozytorium GitHub (`ChrisPolewiak/AzurePolicy`) ukazuje się nowa wersja frameworka (pipeline'y, skrypty, moduły Bicep) i chcesz ciągnąć ją do repozytorium ADO bez nadpisywania lokalnej konfiguracji.
+
+> Pipeline synchronizuje **wyłącznie pliki frameworka** — nigdy nie dotyka `source/own/`, `configurations/`, `scripts/deployment-config.json` ani lokalnych eksportów danych w `docs/`.
+
+### Wymaganie wstępne — service connection do GitHub
+
+Zanim pipeline będzie mógł być uruchomiony po raz pierwszy, utwórz **service connection** do GitHuba w Azure DevOps o dokładnie takiej nazwie jak oczekuje pipeline:
+
+```
+sc-chrispolewiak-github-azurepolicy
+```
+
+Kroki:
+
+1. W ADO przejdź do **Project Settings → Service connections → New service connection**.
+2. Wybierz **GitHub**.
+3. Wybierz metodę uwierzytelnienia — rekomendowana: **GitHub App** lub **Personal Access Token (PAT)**.
+   - PAT wymaga co najmniej zakresu `repo` (odczyt).
+4. W polu **Service connection name** wpisz dokładnie: `sc-chrispolewiak-github-azurepolicy`
+5. Zaznacz **Grant access permission to all pipelines** (lub ogranicz do pipeline `sync-framework`).
+6. Zapisz.
+
+> Nazwa `sc-chrispolewiak-github-azurepolicy` jest zakodowana na stałe w `pipelines/sync-framework.yml` — musi się zgadzać dokładnie.
+
+### Krok F1 — Uruchom pipeline sync-framework
+
+Uruchom pipeline **`sync-framework`** (ręcznie, trigger: none):
+
+| Parametr | Domyślnie | Opis |
+| --- | --- | --- |
+| `frameworkVersion` | `main` | Tag lub branż z GitHuba `ChrisPolewiak/AzurePolicy` |
+| `dryRun` | `true` | `true` = tylko podgląd (bez commitu), `false` = commit i push do ADO |
+
+Pipeline wykonuje:
+
+1. Pobiera (`checkout`) repozytorium ADO (`self`) z `persistCredentials: true`.
+2. Pobiera (`checkout`) repozytorium GitHub (`framework`) do katalogu `_framework_tmp`.
+3. Kopiuje pliki z GitHub do ADO przez `rsync`, **pomijając** ścieżki lokalne:
+   - `source/own/` — własne definicje polityk
+   - `configurations/` — lokalna konfiguracja wdrożeń
+   - `scripts/deployment-config.json`
+   - `docs/*.tsv`, `docs/*.csv`, `docs/*.xlsx`, `docs/*.xls`
+4. Jeśli `dryRun=false`: commituje i pushuje zmiany z komunikatem `chore: sync framework <wersja> from GitHub [skip ci]`.
+5. Jeśli `dryRun=true` (domyślnie): wyświetla `git status` i `git diff --stat HEAD` bez commitowania.
+
+> **Wskazówka:** Zawsze uruchamiaj najpierw z `dryRun=true`, żeby sprawdzić co się zmieni przed commitem.
 
 ---
 

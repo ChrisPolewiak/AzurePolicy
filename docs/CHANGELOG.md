@@ -8,6 +8,38 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.3.0] — 2026-06-03
+
+### Added
+- **`pipelines/sync-framework.yml`** — new Pipeline F: syncs framework files (pipelines, scripts, Bicep modules)
+  from GitHub `ChrisPolewiak/AzurePolicy` to the ADO repository via `rsync`.
+  Preserves local-only paths: `source/own/`, `configurations/`, `scripts/deployment-config.json`,
+  `docs/*.tsv / *.csv / *.xlsx / *.xls`.
+  Supports `dryRun=true` (default, preview only) and `dryRun=false` (commit + push to ADO).
+  Requires GitHub service connection `sc-chrispolewiak-github-azurepolicy` in ADO Project Settings.
+
+### Fixed
+- **`pipelines/sync-framework.yml`** — multi-repo checkout places `self` under
+  `$(Build.SourcesDirectory)/$(Build.Repository.Name)`, not directly at `$(Build.SourcesDirectory)`;
+  corrected `rsync` destination and all `git` command paths accordingly.
+
+### Added (continued)
+- **`configuration/ado-env.example.yml`** — committed template for the gitignored `configuration/ado-env.yml`.
+  Contains `devopsManagedPool` and `serviceConnectionName`.
+  Replaces the former ADO Library Variable Group `AzureDevOps` pattern.
+  `ado-env.yml` is loaded by all pipelines via `variables: - template: ../configuration/ado-env.yml`
+  and is excluded from `sync-framework.yml` rsync (lives only in the ADO repo).
+
+### Documentation
+- **`README.md`**, **`docs/README.md`**, **`docs/README.pl.md`** — added Process F section with
+  full usage instructions and GitHub service connection setup steps.
+  Added "Initial ADO setup" section with `ado-env.yml` creation instructions.
+- **`pipelines/README.md`** — added `sync-framework.yml` to pipeline table and added a dedicated section
+  with description, excluded paths, and requirements.
+  Updated required variables section to reference `configuration/ado-env.yml`.
+
+---
+
 ## [0.2.0] — 2026-06-02
 
 ### Added

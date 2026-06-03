@@ -14,7 +14,7 @@ resources:
     trigger: none
 
 variables:
-- group: 'AzureDevOps'
+- template: ../configuration/ado-env.yml
 
 pool:
   name: $(devopsManagedPool)

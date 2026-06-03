@@ -20,7 +20,7 @@ resources:
     ref: refs/heads/main                           # Default ref — overridden at runtime by frameworkVersion
 
 variables:
-- group: 'AzureDevOps'
+- template: ../configuration/ado-env.yml
 
 pool:
   name: $(devopsManagedPool)

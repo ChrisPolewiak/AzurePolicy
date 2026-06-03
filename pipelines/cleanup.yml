@@ -16,7 +16,7 @@ parameters:
   displayName: 'Delete resources (false = list only / dry-run)'
 
 variables:
-- group: 'AzureDevOps'
+- template: ../configuration/ado-env.yml
 
 pool:
   name: $(devopsManagedPool)
@@ -28,11 +28,11 @@ steps:
 - bash: |
     set -euo pipefail
     if [[ -z "$(devopsManagedPool)" ]]; then
-      echo "ERROR: Missing variable 'devopsManagedPool' in Library Variable Group 'AzureDevOps'."
+      echo "ERROR: Missing variable 'devopsManagedPool' in configuration/ado-env.yml."
       exit 1
     fi
     if [[ -z "$(serviceConnectionName)" ]]; then
-      echo "ERROR: Missing variable 'serviceConnectionName' in Library Variable Group 'AzureDevOps'."
+      echo "ERROR: Missing variable 'serviceConnectionName' in configuration/ado-env.yml."
       exit 1
     fi
     echo "Variable precheck passed."

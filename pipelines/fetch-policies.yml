@@ -8,7 +8,7 @@ parameters:
   displayName: 'Azure Policy version (tag or commit SHA)'
 
 variables:
-- group: 'AzureDevOps'
+- template: ../configuration/ado-env.yml
 
 pool:
   name: $(devopsManagedPool)
