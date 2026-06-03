@@ -15,6 +15,7 @@ Instrukcja użytkowania (procesy dla operatora): [README.pl.md](README.pl.md)
    - [generate\_arm\_from\_source.py](#generate_arm_from_sourcepy)
    - [generate\_config\_from\_table.py](#generate_config_from_tablepy)
    - [validate-config.sh](#validate-configsh)
+   - [create-ado-pipelines.sh](#create-ado-pipelinessh)
    - [cleanup.sh](#cleanupsh)
 3. [Formaty plików TSV](#formaty-plików-tsv)
 4. [Formaty plików JSON (generated/)](#formaty-plików-json-generated)
@@ -188,6 +189,62 @@ Sprawdza:
 - poprawność JSON w `generated/initiatives.json`, `generated/assignments.json`, `generated/parameters.json`
 - wymagane pola w każdym obiekcie (np. `name`, `definitionFile` w initiatives; `name`, `scope` w assignments)
 - spójność referencji (każde `parametersKey` w assignments istnieje w `parameters.json`)
+
+---
+
+### create-ado-pipelines.sh
+
+**Cel:** Tworzy wszystkie definicje pipeline’ów ADO z plików YAML w katalogu `pipelines/` przy użyciu Azure CLI (`az pipelines create`). Idempotentny — pomija pipeline'y, które już istnieją.
+
+**Wymagania:**
+
+- Azure CLI z rozszerzeniem `azure-devops` (`az extension add --name azure-devops`)
+- Aktywne logowanie: `az login` lub kontekst service principal
+- Plik `pipelines/sync-framework.yml` musi istnieć w repozytorium ADO przed utworzeniem tego pipeline'a (jest gitignored; najpierw skopiuj z `sync-framework.example.yml`)
+
+**Użycie:**
+
+```bash
+scripts/create-ado-pipelines.sh --org <org-url> --project <project> [opcje]
+```
+
+| Opcja | Domyślnie | Opis |
+| --- | --- | --- |
+| `--org <url>` | *(wymagane)* | Pełny URL organizacji ADO **wraz z `https://`**, np. `https://dev.azure.com/MyOrg` |
+| `--project <name>` | *(wymagane)* | Nazwa projektu ADO |
+| `--repo <name>` | jak `--project` | Nazwa repozytorium ADO |
+| `--branch <name>` | `main` | Domyślny branch dla wszystkich pipeline’ów |
+| `--folder <path>` | `\AzurePolicy` | Ścieżka folderu w UI ADO |
+| `--dry-run` | | Wyświetla co byłoby utworzone, bez wprowadzania zmian |
+
+> **Uwaga:** `--org` wymaga pełnego adresu URL ze schematem `https://`, a nie samej nazwy organizacji.
+> Skrypt weryfikuje ten format i kończy działanie z błędem, jeśli poda się samą nazwę.
+
+**Tworzone pipeline'y:**
+
+| Nazwa | Ścieżka YAML |
+| --- | --- |
+| `fetch-policies` | `pipelines/fetch-policies.yml` |
+| `rebuild-configuration` | `pipelines/rebuild-configuration.yml` |
+| `update-definitions` | `pipelines/update-definitions.yml` |
+| `update-assignments` | `pipelines/update-assignments.yml` |
+| `cleanup` | `pipelines/cleanup.yml` |
+| `sync-framework` | `pipelines/sync-framework.yml` |
+
+**Przykłady:**
+
+```bash
+# Podgląd bez tworzenia
+scripts/create-ado-pipelines.sh \
+  --org https://dev.azure.com/MyOrg \
+  --project AzurePolicy \
+  --dry-run
+
+# Utwórz pipeline'y
+scripts/create-ado-pipelines.sh \
+  --org https://dev.azure.com/MyOrg \
+  --project AzurePolicy
+```
 
 ---
 

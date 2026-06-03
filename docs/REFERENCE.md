@@ -15,6 +15,7 @@ Operator guide (processes and workflows): [README.md](README.md)
    - [generate\_arm\_from\_source.py](#generate_arm_from_sourcepy)
    - [generate\_config\_from\_table.py](#generate_config_from_tablepy)
    - [validate-config.sh](#validate-configsh)
+   - [create-ado-pipelines.sh](#create-ado-pipelinessh)
    - [cleanup.sh](#cleanupsh)
 3. [TSV file formats](#tsv-file-formats)
 4. [JSON file formats (generated/)](#json-file-formats-generated)
@@ -193,6 +194,62 @@ Checks:
 - valid JSON in `generated/initiatives.json`, `generated/assignments.json`, `generated/parameters.json`
 - required fields in each object (e.g. `name`, `definitionFile` in initiatives; `name`, `scope` in assignments)
 - referential integrity (every `parametersKey` in assignments exists in `parameters.json`)
+
+---
+
+### create-ado-pipelines.sh
+
+**Purpose:** Creates all Azure DevOps pipeline definitions from YAML files in `pipelines/` using the Azure CLI (`az pipelines create`). Idempotent — skips pipelines that already exist.
+
+**Requirements:**
+
+- Azure CLI with the `azure-devops` extension (`az extension add --name azure-devops`)
+- Active login: `az login` or service principal context
+- `pipelines/sync-framework.yml` must exist in the ADO repo before this pipeline can be created (it is gitignored; copy from `sync-framework.example.yml` first)
+
+**Usage:**
+
+```bash
+scripts/create-ado-pipelines.sh --org <org-url> --project <project> [options]
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--org <url>` | *(required)* | Full ADO organization URL **including `https://`**, e.g. `https://dev.azure.com/MyOrg` |
+| `--project <name>` | *(required)* | ADO project name |
+| `--repo <name>` | same as `--project` | ADO repository name |
+| `--branch <name>` | `main` | Default branch for all pipelines |
+| `--folder <path>` | `\AzurePolicy` | ADO UI folder path |
+| `--dry-run` | | Show what would be created without making changes |
+
+> **Note:** `--org` requires a complete URL with the `https://` scheme, not just the organization name.
+> The script validates this and exits with an error if only a bare name is provided.
+
+**Pipelines created:**
+
+| Name | YAML path |
+| --- | --- |
+| `fetch-policies` | `pipelines/fetch-policies.yml` |
+| `rebuild-configuration` | `pipelines/rebuild-configuration.yml` |
+| `update-definitions` | `pipelines/update-definitions.yml` |
+| `update-assignments` | `pipelines/update-assignments.yml` |
+| `cleanup` | `pipelines/cleanup.yml` |
+| `sync-framework` | `pipelines/sync-framework.yml` |
+
+**Example:**
+
+```bash
+# Preview what would be created
+scripts/create-ado-pipelines.sh \
+  --org https://dev.azure.com/MyOrg \
+  --project AzurePolicy \
+  --dry-run
+
+# Create pipelines
+scripts/create-ado-pipelines.sh \
+  --org https://dev.azure.com/MyOrg \
+  --project AzurePolicy
+```
 
 ---
 
