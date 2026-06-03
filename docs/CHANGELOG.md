@@ -6,18 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] — 2026-06-03
+
 ### Added
 
 - **`scripts/create-ado-pipelines.sh`** — CLI script to register all ADO pipeline definitions
   from YAML files using `az pipelines create`. Idempotent (skips existing pipelines).
   Supports `--dry-run`, custom `--folder`, `--branch`, `--repo`.
+  `--org` requires a full URL with `https://` scheme (validated at runtime).
   Requires Azure CLI with the `azure-devops` extension.
+
+### Documentation
 
 - **`README.md`** simplified to a project overview with links to `docs/`;
   full operator guide and technical reference moved to `docs/README.md` and `docs/REFERENCE.md`.
 
 - **Process E (cleanup)** added to `docs/README.md` and `docs/README.pl.md`
   (was missing from docs/ despite existing in root README.md).
+
+- **`docs/REFERENCE.md`**, **`docs/REFERENCE.pl.md`** — added `create-ado-pipelines.sh` section
+  with full option reference, pipeline table, and examples.
 
 ---
 
