@@ -226,6 +226,8 @@ def build_json_payloads(
         definition_type = normalize_value(
             row.get("DefinitionType", "") or row.get("Type", "")
         ).lower()
+        # Type2 column distinguishes Built-in from Custom (used to build correct policyDefinitionId).
+        definition_type2 = normalize_value(row.get("Type2", "")).lower()
         definition_id = normalize_value(row.get("ID", ""))
         definition_name = normalize_value(row.get("Definition Name", ""))[:128]
         assignment_name = normalize_value(row.get("Assignment Name", ""))
@@ -285,6 +287,11 @@ def build_json_payloads(
             elif definition_id in source_policy_set_names:
                 assignment_entry["initiativeName"] = definition_id
             elif is_guid(definition_id):
+                assignment_entry["policyDefinitionId"] = f"/providers/Microsoft.Authorization/policySetDefinitions/{definition_id}"
+            elif definition_type2 == "built-in":
+                # Built-in initiatives referenced by friendly name (not GUID) must use the
+                # global (non-MG-scoped) path; using initiativeName would cause Bicep to
+                # prepend the management group path, resulting in PolicySetDefinitionNotFound.
                 assignment_entry["policyDefinitionId"] = f"/providers/Microsoft.Authorization/policySetDefinitions/{definition_id}"
             else:
                 assignment_entry["initiativeName"] = definition_id
@@ -441,7 +448,15 @@ def parse_parameter_value(value: str, type_hint: str) -> object:
     """
     v = value.strip()
 
-    is_array = type_hint.strip().lower() == "array"
+    th = type_hint.strip().lower()
+
+    is_array = th == "array"
+
+    if th == "integer":
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return v
 
     if not is_array and v.startswith("["):
         try:
