@@ -54,6 +54,12 @@ steps:
       --exclude='docs/*.csv' \
       --exclude='docs/*.xlsx' \
       --exclude='docs/*.xls' \
+      --exclude='pipelines/fetch-policies.yml' \
+      --exclude='pipelines/sync-framework.yml' \
+      --exclude='pipelines/rebuild-configuration.yml' \
+      --exclude='pipelines/update-definitions.yml' \
+      --exclude='pipelines/update-assignments.yml' \
+      --exclude='pipelines/cleanup.yml' \
       $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/$(Build.Repository.Name)/
 
     echo "##[section]Changes after sync:"

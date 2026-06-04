@@ -220,6 +220,7 @@ scripts/create-ado-pipelines.sh --org <org-url> --project <project> [options]
 | `--repo <name>` | same as `--project` | ADO repository name |
 | `--branch <name>` | `main` | Default branch for all pipelines |
 | `--folder <path>` | `\AzurePolicy` | ADO UI folder path |
+| `--name-suffix <s>` | *(none)* | Suffix appended to every pipeline name, e.g. `-DEV` or `-PRD` |
 | `--dry-run` | | Show what would be created without making changes |
 
 > **Note:** `--org` requires a complete URL with the `https://` scheme, not just the organization name.
@@ -227,25 +228,37 @@ scripts/create-ado-pipelines.sh --org <org-url> --project <project> [options]
 
 **Pipelines created:**
 
-| Name | YAML path |
-| --- | --- |
-| `fetch-policies` | `pipelines/fetch-policies.yml` |
-| `rebuild-configuration` | `pipelines/rebuild-configuration.yml` |
-| `update-definitions` | `pipelines/update-definitions.yml` |
-| `update-assignments` | `pipelines/update-assignments.yml` |
-| `cleanup` | `pipelines/cleanup.yml` |
-| `sync-framework` | `pipelines/sync-framework.yml` |
+| Name (base) | Name with suffix example | YAML path |
+| --- | --- | --- |
+| `A-fetch-policies` | `A-fetch-policies-DEV` | `pipelines/fetch-policies.yml` |
+| `B-rebuild-configuration` | `B-rebuild-configuration-DEV` | `pipelines/rebuild-configuration.yml` |
+| `C-update-definitions` | `C-update-definitions-DEV` | `pipelines/update-definitions.yml` |
+| `D-update-assignments` | `D-update-assignments-DEV` | `pipelines/update-assignments.yml` |
+| `E-cleanup` | `E-cleanup-DEV` | `pipelines/cleanup.yml` |
+| `F-sync-framework` | `F-sync-framework-DEV` | `pipelines/sync-framework.yml` |
+
+> **Multi-environment setup:** pipelines B, C and D (`rebuild-configuration.yml`, `update-definitions.yml`,
+> `update-assignments.yml`) contain hardcoded `source:` references to upstream pipeline names.
+> These files are gitignored. Copy from the `.example.yml` templates and replace `<SUFFIX>`
+> in each `source:` field with the same value passed to `--name-suffix`.
 
 **Example:**
 
 ```bash
-# Preview what would be created
+# Preview what would be created (with environment suffix)
 scripts/create-ado-pipelines.sh \
   --org https://dev.azure.com/MyOrg \
   --project AzurePolicy \
+  --name-suffix -DEV \
   --dry-run
 
-# Create pipelines
+# Create pipelines with suffix
+scripts/create-ado-pipelines.sh \
+  --org https://dev.azure.com/MyOrg \
+  --project AzurePolicy \
+  --name-suffix -DEV
+
+# Single-environment setup (no suffix)
 scripts/create-ado-pipelines.sh \
   --org https://dev.azure.com/MyOrg \
   --project AzurePolicy

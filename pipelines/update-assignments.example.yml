@@ -1,0 +1,100 @@
+trigger: none
+pr: none
+
+# SETUP (one-time, per ADO project):
+#   Copy this file to pipelines/update-assignments.yml
+#   and update the source: field to match the upstream pipeline name registered in ADO.
+#   update-assignments.yml is in .gitignore — it stays in your ADO repository only, never on GitHub.
+#
+#   Replace <SUFFIX> in source: with your environment suffix (e.g. -DEV, -PRD)
+#   or remove <SUFFIX> entirely for a single-environment setup.
+#   The value must match exactly the ADO pipeline name registered by create-ado-pipelines.sh.
+#   Examples:
+#     source: B-rebuild-configuration-DEV
+#     source: B-rebuild-configuration    (single-env, no suffix)
+
+parameters:
+- name: location
+  type: string
+  default: germanywestcentral
+  displayName: 'Deployment location for tenant deployment metadata'
+- name: deployPolicies
+  type: boolean
+  default: false
+  displayName: 'Deploy policy assignments to Azure (false = what-if only)'
+- name: targetAssignment
+  type: string
+  default: '*'
+  displayName: 'Assignment name to process (* = all)'
+
+resources:
+  pipelines:
+  - pipeline: rebuild-configuration
+    source: B-rebuild-configuration<SUFFIX>  # SETUP: replace <SUFFIX> with your suffix or remove it
+    trigger: none
+
+variables:
+- template: ../configuration/ado-env.yml
+
+pool:
+  name: $(devopsManagedPool)
+
+steps:
+- checkout: self
+
+- download: rebuild-configuration
+  artifact: policy-generated
+  displayName: 'Download artifact: policy-generated'
+
+- bash: |
+    set -euo pipefail
+    cp -r "$(Pipeline.Workspace)/rebuild-configuration/policy-generated/bicep/." bicep/
+    cp -r "$(Pipeline.Workspace)/rebuild-configuration/policy-generated/generated/." generated/
+  displayName: 'Restore policy-generated artifact to bicep/ and generated/'
+
+- bash: |
+    set -euo pipefail
+    if [[ -z "$(devopsManagedPool)" ]]; then
+      echo "ERROR: Missing variable 'devopsManagedPool' in configuration/ado-env.yml."
+      exit 1
+    fi
+    if [[ -z "$(serviceConnectionName)" ]]; then
+      echo "ERROR: Missing variable 'serviceConnectionName' in configuration/ado-env.yml."
+      exit 1
+    fi
+    echo "Variable precheck passed."
+  displayName: 'Precheck required Library variables'
+
+- task: AzureCLI@2
+  displayName: 'Update policy assignments (what-if + optional deploy)'
+  inputs:
+    azureSubscription: '$(serviceConnectionName)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      echo "Azure authenticated context:"
+      az account show --query "{tenantId:tenantId, subscriptionId:id, subscriptionName:name}" -o table
+
+      chmod +x scripts/update-assignments.sh
+      args=(
+        --location '${{ parameters.location }}'
+      )
+
+      if [[ '${{ parameters.targetAssignment }}' != '*' ]]; then
+        args+=(--assignment '${{ parameters.targetAssignment }}')
+      fi
+
+      if [[ '${{ parameters.deployPolicies }}' == 'True' ]]; then
+        args+=(--deploy)
+      fi
+
+      scripts/update-assignments.sh "${args[@]}"
+
+- bash: |
+    set -euo pipefail
+    rm -rf bicep/policyDefinitions bicep/policySetDefinitions
+    rm -f generated/initiatives.json generated/assignments.json generated/parameters.json generated/assignment-identities.json
+    rm -rf "$(Pipeline.Workspace)/rebuild-configuration"
+  displayName: 'Cleanup workspace'
+  condition: always()

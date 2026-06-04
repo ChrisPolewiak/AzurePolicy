@@ -77,7 +77,14 @@ Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalne pliki konfi
    - `serviceConnectionName` — nazwa Azure DevOps service connection do zadań Azure CLI.
 3. Skopiuj `pipelines/sync-framework.example.yml` jako `pipelines/sync-framework.yml`.
 4. W pliku `sync-framework.yml` ustaw pole `endpoint:` na nazwę swojego GitHub service connection w ADO.
-5. Oba pliki są w `.gitignore` — pozostają tylko w repozytorium ADO, nigdy nie trafiają na GitHub.
+5. Skopiuj trzy pliki pipeline’ów dla konkretnego środowiska:
+   - `pipelines/rebuild-configuration.example.yml` → `pipelines/rebuild-configuration.yml`
+   - `pipelines/update-definitions.example.yml` → `pipelines/update-definitions.yml`
+   - `pipelines/update-assignments.example.yml` → `pipelines/update-assignments.yml`
+6. W każdym z trzech plików zastąp `<SUFFIX>` w polu `source:` sufiksem środowiska
+   (np. `-DEV`, `-PRD`) lub usuń `<SUFFIX>` całkowicie dla konfiguracji jednego środowiska.
+   Sufiks musi odpowiadać wartości podanej jako `--name-suffix` w `create-ado-pipelines.sh`.
+7. Wszystkie pliki są w `.gitignore` — pozostają tylko w repozytorium ADO, nigdy nie trafiają na GitHub.
 
 > Konfiguracja service connection: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
 > Nadaj mu uprawnienia **Contributor** + **User Access Administrator** na poziomie Management Group.

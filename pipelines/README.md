@@ -5,11 +5,13 @@ Azure DevOps pipeline definitions. All pipelines are triggered manually (`trigge
 | File | Stage | Consumes | Produces |
 | --- | --- | --- | --- |
 | `fetch-policies.yml` | A | GitHub Azure/Enterprise-Scale | artifact: `policy-source` |
-| `rebuild-configuration.yml` | B | artifact: `policy-source` | artifact: `policy-generated` |
-| `update-definitions.yml` | C | artifact: `policy-generated` | deploys policy definitions + initiatives to MG |
-| `update-assignments.yml` | D | artifact: `policy-generated` | what-if or deploys policy assignments to tenant |
+| `rebuild-configuration.example.yml` ¹ | B | artifact: `policy-source` | artifact: `policy-generated` |
+| `update-definitions.example.yml` ¹ | C | artifact: `policy-generated` | deploys policy definitions + initiatives to MG |
+| `update-assignments.example.yml` ¹ | D | artifact: `policy-generated` | what-if or deploys policy assignments to tenant |
 | `cleanup.yml` | E | (none) | lists or deletes managed policy resources in Azure |
-| `sync-framework.yml` | — | GitHub ChrisPolewiak/AzurePolicy | commits updated framework files to ADO repo |
+| `sync-framework.example.yml` ¹ | — | GitHub ChrisPolewiak/AzurePolicy | commits updated framework files to ADO repo |
+
+¹ Gitignored — copy from the `.example.yml` template at deployment time. See Initial ADO setup in [docs/README.md](../docs/README.md).
 
 Pipelines C and D are independent — both consume `policy-generated` from Pipeline B
 and can be run separately without re-running each other.

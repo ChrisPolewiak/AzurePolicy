@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`pipelines/rebuild-configuration.example.yml`**, **`pipelines/update-definitions.example.yml`**,
+  **`pipelines/update-assignments.example.yml`** — environment-specific pipeline templates with
+  `source: <stage-letter>-<name><SUFFIX>` placeholder in `resources: pipelines:`.
+  Same gitignored pattern as `sync-framework.yml` — copy from template and replace `<SUFFIX>` at deployment time.
+  Prevents conflicts when multiple environment instances (DEV, PRD) share one ADO project.
+
+### Changed
+
+- **`scripts/create-ado-pipelines.sh`** — pipeline names now include stage letters
+  (`A-fetch-policies`, `B-rebuild-configuration`, `C-update-definitions`, `D-update-assignments`,
+  `E-cleanup`, `F-sync-framework`) for consistent sorting in ADO UI.
+  New `--name-suffix` option for multi-environment setups (e.g. `--name-suffix -DEV`).
+
+- **`pipelines/sync-framework.example.yml`** — rsync excludes extended with
+  `pipelines/rebuild-configuration.yml`, `pipelines/update-definitions.yml`,
+  `pipelines/update-assignments.yml` to prevent overwriting environment-specific local files.
+
 ---
 
 ## [0.4.0] — 2026-06-03

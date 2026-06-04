@@ -15,6 +15,13 @@ configuration/ado-env.yml
 # Sync-framework pipeline — contains hardcoded GitHub service connection name (cannot use variables in resources:)
 pipelines/sync-framework.yml
 
+# Environment-specific pipelines — set up from .example.yml templates during deployment
+pipelines/fetch-policies.yml
+pipelines/rebuild-configuration.yml
+pipelines/update-definitions.yml
+pipelines/update-assignments.yml
+pipelines/cleanup.yml
+
 # Policy snapshot fetched from GitHub (Pipeline A artifact)
 source/EnterpriseALZ/*
 

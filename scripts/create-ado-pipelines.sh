@@ -16,6 +16,7 @@
 #   --repo <name>      ADO repository name (default: same as --project)
 #   --branch <name>    Branch to use as default (default: main)
 #   --folder <path>    ADO pipeline folder path (default: \AzurePolicy)
+#   --name-suffix <s>  Suffix appended to every pipeline name, e.g. -DEV or -PRD (default: none)
 #   --dry-run          Show what would be created without making changes
 #   -h, --help         Show this help and exit
 #
@@ -23,6 +24,7 @@
 #   scripts/create-ado-pipelines.sh \
 #     --org https://dev.azure.com/ChrisPolewiak \
 #     --project AzurePolicy \
+#     --name-suffix -DEV \
 #     --dry-run
 
 set -euo pipefail
@@ -35,16 +37,17 @@ PROJECT=""
 REPO=""
 BRANCH="main"
 FOLDER='\AzurePolicy'
+SUFFIX=""
 DRY_RUN=false
 
 # Pipeline definitions: "display-name|yaml-path"
 PIPELINES=(
-  "fetch-policies|pipelines/fetch-policies.yml"
-  "rebuild-configuration|pipelines/rebuild-configuration.yml"
-  "update-definitions|pipelines/update-definitions.yml"
-  "update-assignments|pipelines/update-assignments.yml"
-  "cleanup|pipelines/cleanup.yml"
-  "sync-framework|pipelines/sync-framework.yml"
+  "A-fetch-policies|pipelines/fetch-policies.yml"
+  "B-rebuild-configuration|pipelines/rebuild-configuration.yml"
+  "C-update-definitions|pipelines/update-definitions.yml"
+  "D-update-assignments|pipelines/update-assignments.yml"
+  "E-cleanup|pipelines/cleanup.yml"
+  "F-sync-framework|pipelines/sync-framework.yml"
 )
 
 # ---------------------------------------------------------------------------
@@ -57,6 +60,7 @@ while [[ $# -gt 0 ]]; do
     --repo)      REPO="$2";    shift 2 ;;
     --branch)    BRANCH="$2";  shift 2 ;;
     --folder)    FOLDER="$2";  shift 2 ;;
+    --name-suffix) SUFFIX="$2"; shift 2 ;;
     --dry-run)   DRY_RUN=true; shift   ;;
     -h|--help)
       sed -n '/^# Usage/,/^[^#]/p' "$0" | grep '^#' | sed 's/^# \?//'
@@ -117,6 +121,7 @@ echo "Project      : $PROJECT"
 echo "Repository   : $REPO"
 echo "Branch       : $BRANCH"
 echo "ADO folder   : $FOLDER"
+echo "Name suffix  : ${SUFFIX:-(none)}"
 echo "Dry run      : $DRY_RUN"
 echo ""
 
@@ -128,18 +133,19 @@ for entry in "${PIPELINES[@]}"; do
   NAME="${entry%%|*}"
   YAML="${entry##*|}"
 
-  # sync-framework uses a gitignored local file; warn if it doesn't exist
-  if [[ "$NAME" == "sync-framework" && ! -f "$(dirname "${BASH_SOURCE[0]}")/../${YAML}" ]]; then
+  # Warn if YAML file is missing locally (gitignored files must be set up from .example.yml)
+  if [[ ! -f "$(dirname "${BASH_SOURCE[0]}")/../${YAML}" ]]; then
     echo "  [WARN] $YAML not found locally (gitignored) — pipeline will be created but ADO needs the file in the repo."
+    echo "         Copy from the .example.yml template and set the correct pipeline name in source: field."
   fi
 
-  if pipeline_exists "$NAME"; then
-    echo "  [SKIP] $NAME — already exists"
+  if pipeline_exists "${NAME}${SUFFIX}"; then
+    echo "  [SKIP] ${NAME}${SUFFIX} — already exists"
     ((SKIPPED++)) || true
     continue
   fi
 
-  echo -n "  [CREATE] $NAME ($YAML) ... "
+  echo -n "  [CREATE] ${NAME}${SUFFIX} ($YAML) ... "
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "(dry run)"
@@ -148,7 +154,7 @@ for entry in "${PIPELINES[@]}"; do
   fi
 
   if az pipelines create \
-      --name "$NAME" \
+      --name "${NAME}${SUFFIX}" \
       --yaml-path "$YAML" \
       --repository "$REPO" \
       --repository-type tfsgit \
