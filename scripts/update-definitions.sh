@@ -193,6 +193,60 @@ PYEOF
   echo "  Pool: $POOL_DEF_COUNT policy definition(s), $POOL_INIT_COUNT initiative(s)"
 fi
 
+# --- Step 2a: When deploying a single initiative, auto-deploy its dependent policy definitions first ---
+if [[ "$SKIP_DEFINITIONS" != "true" && -n "$TARGET_INITIATIVE" && -z "$TARGET_DEFINITION" ]]; then
+  init_template="bicep/policySetDefinitions/${TARGET_INITIATIVE}.json"
+  if [[ -f "$init_template" ]]; then
+    mg_prefix="/providers/Microsoft.Management/managementGroups/${MANAGEMENT_GROUP}/providers/Microsoft.Authorization/policyDefinitions/"
+    dep_defs=$(python3 - "$init_template" "$mg_prefix" <<'PYDEP'
+import json, sys
+tmpl = json.load(open(sys.argv[1]))
+prefix = sys.argv[2]
+found = set()
+def scan(obj):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == 'policyDefinitionId' and isinstance(v, str) and v.startswith(prefix):
+                found.add(v[len(prefix):])
+            else:
+                scan(v)
+    elif isinstance(obj, list):
+        [scan(i) for i in obj]
+scan(tmpl)
+for d in sorted(found):
+    print(d)
+PYDEP
+)
+    if [[ -n "$dep_defs" ]]; then
+      echo ""
+      echo "==> Deploying dependent policy definitions for initiative '$TARGET_INITIATIVE'..."
+      DEP_COUNT=$(echo "$dep_defs" | wc -l | tr -d ' ')
+      DEP_INDEX=0
+      while IFS= read -r policy_name; do
+        [[ -z "$policy_name" ]] && continue
+        template="bicep/policyDefinitions/${policy_name}.json"
+        if [[ ! -f "$template" ]]; then
+          echo "  ✗ Dependent definition template not found, skipping: $policy_name"
+          continue
+        fi
+        DEP_INDEX=$((DEP_INDEX + 1))
+        deploy_mg=$(python3 -c "import json; d=json.load(open('$template')); print(d.get('metadata', {}).get('targetManagementGroup', ''))" 2>/dev/null || true)
+        deploy_mg="${deploy_mg:-$MANAGEMENT_GROUP}"
+        echo "  [$DEP_INDEX/$DEP_COUNT] Dependent definition: $policy_name (MG: $deploy_mg)"
+        az deployment mg create \
+          --management-group-id "$deploy_mg" \
+          --location "$LOCATION" \
+          --template-file "$template" \
+          --name "policyDef-$(echo "$policy_name" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | cut -c1-47)-$(date +%H%M%S)" \
+          --output none
+      done <<< "$dep_defs"
+      echo "✓ $DEP_INDEX dependent definition(s) deployed."
+    else
+      echo "  (no MG-scoped dependent definitions found in $TARGET_INITIATIVE)"
+    fi
+  fi
+fi
+
 # --- Step 2: Deploy individual policy definitions to Management Group ---
 if [[ "$SKIP_DEFINITIONS" != "true" && ( -n "$TARGET_DEFINITION" || -z "$TARGET_INITIATIVE" ) ]]; then
   echo ""
