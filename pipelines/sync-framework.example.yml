@@ -47,6 +47,7 @@ steps:
 
     rsync -av \
       --exclude='.git/' \
+      --exclude='.gitignore' \
       --exclude='configurations/' \
       --exclude='source/own/' \
       --exclude='scripts/deployment-config.json' \
