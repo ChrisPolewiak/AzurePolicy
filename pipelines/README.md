@@ -38,7 +38,7 @@ Key manual-run parameters:
 - `update-definitions.yml`: `targetInitiative` (default `*`), `targetDefinition` (default `*`), `deployPolicyDefinitions`, `deployInitiatives`
 - `update-assignments.yml`: `deployPolicies`, `targetAssignment` (default `*`)
 - `cleanup.yml`: `targetAssignment` (default `*`), `withDefinitions`, `delete` (default `false` = dry-run)
-- `sync-framework.yml`: `frameworkVersion` (default `main`, podaj tag lub branch z GitHub), `dryRun` (default `true` = podgląd bez commitu)
+- `sync-framework.yml`: `frameworkVersion` (default `main`, tag or branch from GitHub), `dryRun` (default `true` = preview without commit)
 
 ## sync-framework.yml
 

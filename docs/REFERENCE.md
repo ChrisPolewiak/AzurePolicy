@@ -191,6 +191,7 @@ scripts/validate-config.sh
 ```
 
 Checks:
+
 - valid JSON in `generated/initiatives.json`, `generated/assignments.json`, `generated/parameters.json`
 - required fields in each object (e.g. `name`, `definitionFile` in initiatives; `name`, `scope` in assignments)
 - referential integrity (every `parametersKey` in assignments exists in `parameters.json`)
@@ -436,6 +437,7 @@ Dictionary object; keys are the `Parameter Set` values from the assignments tabl
 ### bicep/assignments.bicep
 
 Iterates over the `assignments` array and calls:
+
 - `policyAssignmentManagementGroup.bicep` for `managementGroup` scope
 - `policyAssignmentSubscription.bicep` for `subscription` scope
 

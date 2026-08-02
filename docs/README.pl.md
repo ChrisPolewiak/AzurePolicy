@@ -399,7 +399,7 @@ Uruchom pipeline **`sync-framework`** (ręcznie, trigger: none):
 
 | Parametr | Domyślnie | Opis |
 | --- | --- | --- |
-| `frameworkVersion` | `main` | Tag lub branż z GitHuba `ChrisPolewiak/AzurePolicy` |
+| `frameworkVersion` | `main` | Tag lub branch z GitHuba `ChrisPolewiak/AzurePolicy` |
 | `dryRun` | `true` | `true` = tylko podgląd (bez commitu), `false` = commit i push do ADO |
 
 Pipeline wykonuje:

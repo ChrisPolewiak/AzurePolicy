@@ -15,4 +15,4 @@ Shell and Python scripts that implement the four pipeline stages.
 | `validate-config.sh` | B/D | Validates structure and cross-references in `config/*.json` |
 | `configuration/deployment-config.json` | all | Central configuration: locations, Management Group IDs, paths |
 
-See [REFERENCE.md](../REFERENCE.md) for detailed documentation of each script.
+See [REFERENCE.md](../docs/REFERENCE.md) for detailed documentation of each script.

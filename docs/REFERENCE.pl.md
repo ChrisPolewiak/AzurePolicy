@@ -111,7 +111,7 @@ python3 scripts/generate_arm_from_source.py [--source-dir SOURCE] [--bicep-dir B
 ```
 
 | Argument | Domyślnie (z deployment-config.json) | Opis |
-|---|---|---|
+| --- | --- | --- |
 | `--source-dir` | `source/` | Katalog ze snapshotami JSON |
 | `--bicep-dir` | `bicep/` | Katalog wyjściowy dla szablonów ARM JSON |
 
@@ -120,6 +120,10 @@ python3 scripts/generate_arm_from_source.py [--source-dir SOURCE] [--bicep-dir B
 1. Skanuje `source/policyDefinitions/*.json` → generuje `bicep/policyDefinitions/<name>.json`
 2. Skanuje `source/policySetDefinitions/*.json` → generuje `bicep/policySetDefinitions/<name>.json`
 3. Pomija warianty chmurowe `*.AzureChinaCloud.json` i `*.AzureUSGovernment.json` dla policy definitions, aby uniknąć duplikatów nazw.
+4. Wyłącznie dla **własnych** definicji (`own/policyDefinitions/`, `own/policySetDefinitions/`):
+   wstrzykuje `properties.metadata.managedBy` z wartością `managementTag` z
+   `deployment-config.json` (za pomocą `setdefault` — istniejące wartości nie są nadpisywane).
+   Definicje źródłowe ALZ nie są modyfikowane.
 
 Wygenerowane pliki **nie powinny być edytowane ręcznie** — każde uruchomienie skryptu je nadpisuje.
 
@@ -137,8 +141,8 @@ python3 scripts/generate_config_from_table.py [opcje]
 ```
 
 | Argument | Domyślnie | Opis |
-|---|---|---|
-| `--input` | `docs/policy-assignments.tsv` | Plik TSV/CSV z przypisaniami |
+| --- | --- | --- |
+| `--input` | `configuration/policy-assignments.tsv` | Plik TSV/CSV z przypisaniami |
 | `--output-dir` | `generated/` | Katalog wyjściowy dla JSON |
 | `--params-input` | `configuration/policy-parameters.tsv` | Plik TSV/CSV z parametrami |
 | `--suffix` | *(puste)* | Sufiks w nazwie pliku (np. `test` → `assignments-test.json`) |
@@ -186,6 +190,7 @@ scripts/validate-config.sh
 ```
 
 Sprawdza:
+
 - poprawność JSON w `generated/initiatives.json`, `generated/assignments.json`, `generated/parameters.json`
 - wymagane pola w każdym obiekcie (np. `name`, `definitionFile` w initiatives; `name`, `scope` w assignments)
 - spójność referencji (każde `parametersKey` w assignments istnieje w `parameters.json`)
@@ -276,7 +281,7 @@ scripts/cleanup.sh [--delete] [--with-definitions] [--assignment <name>]
 ```
 
 | Flaga | Opis |
-|---|---|
+| --- | --- |
 | *(brak flag)* | Tryb listowania: wyświetla zarządzane zasoby znalezione w Azure — bez zmian |
 | `--delete` | Usuwa wylistowane zasoby |
 | `--with-definitions` | Uwzględnia też niestandardowe definicje polityk i inicjatywy |
@@ -285,7 +290,7 @@ scripts/cleanup.sh [--delete] [--with-definitions] [--assignment <name>]
 **Sposób wykrywania zasobów:**
 
 | Zasób | Metoda |
-|---|---|
+| --- | --- |
 | Przypisania polityk | `az graph query` na tabeli `PolicyResources` po `properties.metadata.assignedBy` |
 | UAMIs (tryb selektywny) | Wyodrębniane z `identity.userAssignedIdentities` znalezionego przypisania |
 | UAMIs (tryb pełny) | `az identity list` filtrowane po tagu `managedBy` w skonfigurowanej grupie zasobów |
@@ -329,7 +334,6 @@ Tablica obiektów; każda inicjatywa pojawia się maksymalnie raz (deduplikacja 
 ```json
 [
   {
-    "internalId": "ap001",
     "name": "Enforce-ALZ-Decomm",
     "definitionFile": "source/policySetDefinitions/Enforce-ALZ-Decomm.json",
     "enabled": true
@@ -338,10 +342,9 @@ Tablica obiektów; każda inicjatywa pojawia się maksymalnie raz (deduplikacja 
 ```
 
 | Pole | Opis |
-|---|---|
-| `internalId` | Wartość z kolumny `InternalID` pierwszego wiersza dla tej inicjatywy |
-| `name` | Nazwa inicjatywy (klucz dla assignmentów) |
-| `definitionFile` | Ścieżka względem root repo do pliku JSON snapshotu |
+| --- | --- |
+| `name` | Nazwa inicjatywy — używana jako klucz dla referencji z assignmentów |
+| `definitionFile` | Ścieżka względem root repo do pliku JSON snapshotu ALZ |
 | `enabled` | Zawsze `true` dla wierszy z `Deploy=TRUE` |
 
 ### assignments.json
@@ -351,7 +354,6 @@ Tablica obiektów; jedno przypisanie na wiersz TSV z `Deploy=TRUE`.
 ```json
 [
   {
-    "internalId": "ap001",
     "name": "Enforce-ALZ-Decomm-mg-root",
     "scope": {
       "type": "managementGroup",
@@ -399,45 +401,26 @@ Obiekt słownikowy; klucze to `Parameter Set` z tabeli przypisań.
 
 ## Struktura szablonów i Bicep
 
-### bicep/main.bicep
-
-`targetScope = 'tenant'` — wdrożenie na poziomie tenanta.
-
-Orkiestruje trzy moduły:
-
-| Moduł | Plik | Opis |
-|---|---|---|
-| `policyDefinitions` | `bicep/policyDefinitions.bicep` | Historycznie wdrażał definicje polityk do MG |
-| `policySetDefinitions` | `bicep/policySetDefinitions.bicep` | Historycznie wdrażał inicjatywy do MG |
-| `assignments` | `bicep/assignments.bicep` | Wdraża przypisania (MG i Sub) |
-
-W aktualnym procesie CI/CD moduł `main.bicep` nie jest używany przez pipeline'y do wdrażania definicji i inicjatyw.
-Definicje oraz inicjatywy są wdrażane przez `scripts/update-definitions.sh` jako oddzielne deploymenty ARM JSON per plik.
-
-Parametry wejściowe `main.bicep`:
-
-- `definitionManagementGroupId` — Management Group dla definicji
-- `initiatives` — tablica z `generated/initiatives.json`
-- `assignments` — tablica z `generated/assignments.json`
-- `parameterSets` — obiekt z `generated/parameters.json`
-
 ### bicep/policyDefinitions/ (AUTO-GENERATED)
 
-- Katalog z indywidualnymi szablonami ARM JSON, jeden plik na definicję polityki.
+- Jeden szablon ARM JSON na definicję polityki.
 - Każdy plik zawiera pojedynczy resource `Microsoft.Authorization/policyDefinitions@2023-04-01`.
 - Wdrażany w pętli przez `scripts/update-definitions.sh`.
-- **Nie edytować ręcznie** — regenerowany przez `generate_arm_from_source.py`.
+- **Nie edytować ręcznie** — regenerowany przez `generate_arm_from_source.py` przy każdym uruchomieniu Pipeline B.
 
 ### bicep/policySetDefinitions/ (AUTO-GENERATED)
 
-- Katalog z indywidualnymi szablonami ARM JSON, jeden plik na inicjatywę.
+- Jeden szablon ARM JSON na inicjatywę (policy set).
 - Każdy plik zawiera pojedynczy resource `Microsoft.Authorization/policySetDefinitions@2023-04-01`.
 - Wdrażany w pętli przez `scripts/update-definitions.sh`.
-- **Nie edytować ręcznie** — regenerowany przez `generate_arm_from_source.py`.
+- **Nie edytować ręcznie** — regenerowany przez `generate_arm_from_source.py` przy każdym uruchomieniu Pipeline B.
+- Placeholder ALZ `contoso` w referencjach `policyDefinitionId` jest podczas generowania zastępowany
+  rzeczywistym ID Management Group z `deployment-config.json`.
 
 ### bicep/assignments.bicep
 
 Iteruje po tablicy `assignments` i wywołuje moduły:
+
 - `policyAssignmentManagementGroup.bicep` dla scope `managementGroup`
 - `policyAssignmentSubscription.bicep` dla scope `subscription`
 
@@ -467,5 +450,5 @@ Aby dodać obsługę wyjątków (Policy Exemptions):
 
 1. Utwórz `generated/exemptions.json` z tablicą wyjątków (analogicznie do `assignments.json`).
 2. Utwórz `bicep/exemptions.bicep` z pętlą resource `Microsoft.Authorization/policyExemptions@2022-07-01-preview`.
-3. Dodaj moduł `exemptions` do `bicep/main.bicep`.
+3. Dodaj moduł `exemptions` do `bicep/assignments.bicep`.
 4. Opcjonalnie rozszerz `generate_config_from_table.py` o obsługę dodatkowej zakładki Excel.
