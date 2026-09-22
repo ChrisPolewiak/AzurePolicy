@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
 
 - **`pipelines/sync-framework.example.yml`** — the public framework repository is downloaded
   anonymously over HTTPS; the GitHub service connection, PAT, and `endpoint` configuration
-  are no longer required.
+  are no longer required. The sync target is the root of the single `self` checkout.
 
 - **`scripts/create-ado-pipelines.sh`** — pipeline names now include stage letters
   (`A-fetch-policies`, `B-rebuild-configuration`, `C-update-definitions`, `D-update-assignments`,

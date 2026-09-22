@@ -58,11 +58,11 @@ steps:
       --exclude='pipelines/update-definitions.yml' \
       --exclude='pipelines/update-assignments.yml' \
       --exclude='pipelines/cleanup.yml' \
-      $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/$(Build.Repository.Name)/
+      $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/
 
     echo "##[section]Changes after sync:"
-    git -C "$(Build.SourcesDirectory)/$(Build.Repository.Name)" status
-    git -C "$(Build.SourcesDirectory)/$(Build.Repository.Name)" diff --stat HEAD
+    git -C "$(Build.SourcesDirectory)" status
+    git -C "$(Build.SourcesDirectory)" diff --stat HEAD
   displayName: 'Sync framework from GitHub'
 
 - bash: |
@@ -82,7 +82,7 @@ steps:
     git push origin HEAD:$(Build.SourceBranchName)
 
     echo "##[section]Sync committed and pushed."
-  workingDirectory: $(Build.SourcesDirectory)/$(Build.Repository.Name)
+  workingDirectory: $(Build.SourcesDirectory)
   displayName: 'Commit and push sync to ADO'
   condition: and(succeeded(), eq('${{ parameters.dryRun }}', 'false'))
 
@@ -91,6 +91,6 @@ steps:
     echo "Run with dryRun=false to apply."
     git status
     git diff HEAD
-  workingDirectory: $(Build.SourcesDirectory)/$(Build.Repository.Name)
+  workingDirectory: $(Build.SourcesDirectory)
   displayName: 'Dry run summary (no commit)'
   condition: and(succeeded(), eq('${{ parameters.dryRun }}', 'true'))

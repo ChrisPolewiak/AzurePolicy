@@ -393,8 +393,8 @@ Run the **`sync-framework`** pipeline (manually, trigger: none):
 The pipeline:
 
 1. Checks out the ADO repository (`self`) with `persistCredentials: true`.
-2. Checks out the GitHub repository (`framework`) to `_framework_tmp`.
-3. Runs `rsync` — copies files from GitHub to ADO, **excluding** local-only paths:
+2. Clones the public GitHub repository anonymously to `_framework_tmp`.
+3. Runs `rsync` — copies files from GitHub to the ADO repository root, **excluding** local-only paths:
    - `source/own/` — własne definicje polityk
    - `configurations/` — lokalna konfiguracja wdrożeń
    - `scripts/deployment-config.json`

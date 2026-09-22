@@ -397,8 +397,8 @@ Uruchom pipeline **`sync-framework`** (ręcznie, trigger: none):
 Pipeline wykonuje:
 
 1. Pobiera (`checkout`) repozytorium ADO (`self`) z `persistCredentials: true`.
-2. Pobiera (`checkout`) repozytorium GitHub (`framework`) do katalogu `_framework_tmp`.
-3. Kopiuje pliki z GitHub do ADO przez `rsync`, **pomijając** ścieżki lokalne:
+2. Klonuje publiczne repozytorium GitHub anonimowo do katalogu `_framework_tmp`.
+3. Kopiuje pliki z GitHub do głównego katalogu repozytorium ADO przez `rsync`, **pomijając** ścieżki lokalne:
    - `source/own/` — własne definicje polityk
    - `configurations/` — lokalna konfiguracja wdrożeń
    - `scripts/deployment-config.json`
