@@ -4,9 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.5.0] — 2026-06-03
 
 ### Added
+
+- **`scripts/generate_config_from_table.py`** — `Assignment Scope=ROOT` is now supported as a
+  case-insensitive alias for the root Management Group configured by
+  `deployment.definitionManagementGroupId` in `configuration/deployment-config.json`.
 
 - **`pipelines/rebuild-configuration.example.yml`**, **`pipelines/update-definitions.example.yml`**,
   **`pipelines/update-assignments.example.yml`** — environment-specific pipeline templates with
