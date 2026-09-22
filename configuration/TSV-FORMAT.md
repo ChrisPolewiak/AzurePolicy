@@ -22,7 +22,7 @@ One row per policy assignment. Rows with `Deploy=FALSE` are skipped by default.
 | --- | --- | --- |
 | `InternalID` | ✓ | Unique tracking identifier (e.g. `AP2026-04-28_0001`) — used as the ARM resource name and UAMI name suffix |
 | `Deploy` | ✓ | `TRUE` / `FALSE` — rows with `FALSE` are skipped |
-| `Assignment Scope` | ✓ | Management Group name or subscription UUID |
+| `Assignment Scope` | ✓ | Management Group name, subscription UUID, or the reserved alias `ROOT` |
 | `Assignment Name` | ✓ | Human-readable display name for the assignment |
 | `DefinitionType` or `Type` | ✓ | `Initiative` or `Policy` |
 | `Definition Name` | ✓ | Initiative or policy display name |
@@ -34,6 +34,21 @@ One row per policy assignment. Rows with `Deploy=FALSE` are skipped by default.
 | `Identity RBAC Scope` | — | Comma-separated ARM scopes for the role assignments (default: assignment scope) |
 
 Any other columns (e.g. `AzAdvertizer Link`, `Version`, `Comment`) are treated as helper columns and ignored.
+
+### Assignment scope `ROOT`
+
+Use `ROOT` in `Assignment Scope` when the assignment must be created at the root
+Management Group configured for this environment:
+
+```tsv
+AP2026-01-01_0004	TRUE	ROOT	contoso-root-guardrails	Initiative	Root guardrails	Contoso-Root-Guardrails
+```
+
+The generator resolves `ROOT` to `deployment.definitionManagementGroupId` from
+`configuration/deployment-config.json`. The generated assignment JSON and the
+deployment command therefore contain the actual Management Group ID. `ROOT` is
+case-insensitive, but it is reserved and must not be used as a literal
+Management Group ID.
 
 ### Minimal example
 

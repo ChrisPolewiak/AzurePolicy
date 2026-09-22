@@ -255,6 +255,11 @@ Kolumny przetwarzane przez skrypt — opis w [REFERENCE.md → Kolumny TSV](REFE
 
 Otwórz `configuration/Azure-Policy.xlsx` → zakładka **Parameters** i zaktualizuj wartości parametrów dla odpowiednich zestawów (Parameter Set).
 
+Jeśli przypisanie ma trafić do głównej Management Group, wpisz `ROOT` w kolumnie
+`Assignment Scope`. Generator zamieni ten alias na wartość
+`deployment.definitionManagementGroupId` z pliku `configuration/deployment-config.json`.
+Przykład znajduje się w [opisie formatu TSV](../configuration/TSV-FORMAT.md#assignment-scope-root).
+
 ### Krok D3 — Eksportuj zmiany do TSV
 
 W Excelu dla każdej zmienionej zakładki:

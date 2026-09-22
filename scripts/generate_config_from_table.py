@@ -139,6 +139,29 @@ def assignment_scope_path(scope_type: str, scope_id: str) -> str:
     return f"/providers/Microsoft.Management/managementGroups/{scope_id}"
 
 
+def normalize_assignment_scope(scope_id: str, deployment_config: Dict[str, Any]) -> str:
+    """Resolve supported assignment-scope aliases to their Azure resource ID.
+
+    ROOT is an explicit alias for the configured root management group. It is
+    intentionally resolved before subscription detection because Azure
+    management-group IDs can also look like GUIDs.
+    """
+    normalized = normalize_value(scope_id)
+    if normalized.upper() != "ROOT":
+        return normalized
+
+    deployment = deployment_config.get("deployment", {})
+    root_management_group = normalize_value(
+        deployment.get("definitionManagementGroupId", "")
+    ) if isinstance(deployment, dict) else ""
+    if not root_management_group or root_management_group.startswith("<"):
+        raise ValueError(
+            "Assignment Scope ROOT requires a configured "
+            "deployment.definitionManagementGroupId in configuration/deployment-config.json."
+        )
+    return root_management_group
+
+
 def normalize_tags(value: Any) -> Dict[str, str]:
     """Return a stringified tag dictionary from arbitrary JSON-like input."""
     if not isinstance(value, dict):
@@ -218,7 +241,9 @@ def build_json_payloads(
 
     for row in rows:
         internal_id = normalize_value(row.get("InternalID", ""))
-        assignment_scope = normalize_value(row.get("Assignment Scope", ""))
+        assignment_scope = normalize_assignment_scope(
+            row.get("Assignment Scope", ""), deployment_config
+        )
         parameter_set = normalize_value(row.get("Parameter Set", ""))
         effect_value = normalize_value(row.get("DeployIfNotExists", ""))
         enforcement_mode = normalize_value(row.get("Enforcement Mode", "")) or "Default"
