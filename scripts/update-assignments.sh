@@ -342,8 +342,11 @@ if not identity_id:
     print(json.dumps(entry))
     raise SystemExit(0)
   create_args = ["identity", "create", "--name", uami_name, "--resource-group", resource_group, "--subscription", subscription_id, "--location", location, "--query", "id", "-o", "tsv"]
-  if isinstance(tags, dict) and tags:
-    create_args.extend(["--tags", *[f"{key}={value}" for key, value in tags.items() if str(key).strip()]])
+  if isinstance(tags, dict):
+    # az rejects blank tag values ("key="), so drop incomplete pairs instead of failing the whole create.
+    tag_args = [f"{key}={value}" for key, value in tags.items() if str(key).strip() and str(value).strip()]
+    if tag_args:
+      create_args.extend(["--tags", *tag_args])
   create = run_az(create_args)
   if create.returncode != 0:
     print(create.stderr.strip() or create.stdout.strip(), file=sys.stderr)
