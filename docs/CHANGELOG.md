@@ -20,6 +20,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **`pipelines/sync-framework.example.yml`** — the public framework repository is downloaded
+  anonymously over HTTPS; the GitHub service connection, PAT, and `endpoint` configuration
+  are no longer required.
+
 - **`scripts/create-ado-pipelines.sh`** — pipeline names now include stage letters
   (`A-fetch-policies`, `B-rebuild-configuration`, `C-update-definitions`, `D-update-assignments`,
   `E-cleanup`, `F-sync-framework`) for consistent sorting in ADO UI.

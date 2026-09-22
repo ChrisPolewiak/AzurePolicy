@@ -2,11 +2,8 @@ trigger: none
 pr: none
 
 # SETUP (one-time, per ADO project):
-#   Copy this file to pipelines/sync-framework.yml and set your GitHub service connection name.
+#   Copy this file to pipelines/sync-framework.yml.
 #   sync-framework.yml is in .gitignore — it stays local in your ADO repository, never on GitHub.
-#
-# WHY: resources: is evaluated at compile time — $(variables) and ${{ parameters }} are not allowed
-#   in the endpoint field. The service connection name must be a literal string.
 
 parameters:
 - name: frameworkVersion
@@ -17,14 +14,6 @@ parameters:
   type: boolean
   default: true
   displayName: 'Dry run (preview changes without committing)'
-
-resources:
-  repositories:
-  - repository: framework
-    type: github
-    endpoint: <YOUR_GITHUB_SERVICE_CONNECTION_NAME>  # TODO: replace with your GitHub service connection name
-    name: ChrisPolewiak/AzurePolicy                # GitHub repo (org/repo)
-    ref: refs/heads/main                           # Default ref — overridden at runtime by frameworkVersion
 
 variables:
 - template: ../configuration/ado-env.yml
@@ -37,8 +26,16 @@ steps:
   persistCredentials: true
   fetchDepth: 0
 
-- checkout: framework
-  path: _framework_tmp
+- bash: |
+    set -euo pipefail
+
+    rm -rf "$(Agent.BuildDirectory)/_framework_tmp"
+    git clone --depth 1 --branch "${FRAMEWORK_VERSION}" \
+      https://github.com/ChrisPolewiak/AzurePolicy.git \
+      "$(Agent.BuildDirectory)/_framework_tmp"
+  env:
+    FRAMEWORK_VERSION: ${{ parameters.frameworkVersion }}
+  displayName: 'Checkout framework from public GitHub repository'
 
 - bash: |
     set -euo pipefail

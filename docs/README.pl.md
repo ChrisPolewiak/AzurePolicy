@@ -76,7 +76,7 @@ Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalne pliki konfi
    - `devopsManagedPool` — nazwa puli agentów ADO (np. `Default` lub pula self-hosted).
    - `serviceConnectionName` — nazwa Azure DevOps service connection do zadań Azure CLI.
 3. Skopiuj `pipelines/sync-framework.example.yml` jako `pipelines/sync-framework.yml`.
-4. W pliku `sync-framework.yml` ustaw pole `endpoint:` na nazwę swojego GitHub service connection w ADO.
+4. Publiczne repozytorium GitHub jest pobierane anonimowo przez pipeline; GitHub service connection ani klucz nie są wymagane.
 5. Skopiuj trzy pliki pipeline’ów dla konkretnego środowiska:
    - `pipelines/rebuild-configuration.example.yml` → `pipelines/rebuild-configuration.yml`
    - `pipelines/update-definitions.example.yml` → `pipelines/update-definitions.yml`
@@ -378,25 +378,12 @@ Stosuj gdy w repozytorium GitHub (`ChrisPolewiak/AzurePolicy`) ukazuje się nowa
 
 > Pipeline synchronizuje **wyłącznie pliki frameworka** — nigdy nie dotyka `source/own/`, `configurations/`, `scripts/deployment-config.json` ani lokalnych eksportów danych w `docs/`.
 
-### Wymaganie wstępne — service connection do GitHub
+### Wymaganie wstępne — publiczne repozytorium GitHub
 
-Zanim pipeline będzie mógł być uruchomiony po raz pierwszy, utwórz **service connection** do GitHuba w Azure DevOps o dokładnie takiej nazwie jak oczekuje pipeline:
-
-```
-sc-chrispolewiak-github-azurepolicy
-```
-
-Kroki:
-
-1. W ADO przejdź do **Project Settings → Service connections → New service connection**.
-2. Wybierz **GitHub**.
-3. Wybierz metodę uwierzytelnienia — rekomendowana: **GitHub App** lub **Personal Access Token (PAT)**.
-   - PAT wymaga co najmniej zakresu `repo` (odczyt).
-4. W polu **Service connection name** wpisz dowolną nazwę (zgodną z Twoją polityką nazewnictwa).
-5. Zaznacz **Grant access permission to all pipelines** (lub ogranicz do pipeline `sync-framework`).
-6. Zapisz.
-
-Następnie zaktualizuj pole `endpoint:` w lokalnym pliku `pipelines/sync-framework.yml` tak, by zgadzało się z wybraną nazwą.
+Repozytorium frameworka jest publiczne, więc pipeline pobiera je anonimowo przez
+HTTPS. Nie jest potrzebne GitHub service connection, PAT, klucz SSH ani konfiguracja
+`endpoint`. Nadal wymagane jest połączenie serwisowe Azure DevOps używane przez sam
+pipeline do operacji Azure/ADO.
 
 ### Krok F1 — Uruchom pipeline sync-framework
 

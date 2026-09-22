@@ -76,7 +76,7 @@ Before running any pipeline, create local configuration files in your ADO reposi
    - `devopsManagedPool` — name of your ADO agent pool (e.g. `Default` or a self-hosted pool).
    - `serviceConnectionName` — name of the Azure DevOps service connection for Azure CLI tasks.
 3. Copy `pipelines/sync-framework.example.yml` to `pipelines/sync-framework.yml`.
-4. In `sync-framework.yml`, set `endpoint:` to the name of your GitHub service connection in ADO.
+4. The public GitHub repository is downloaded anonymously by the pipeline; no GitHub service connection or key is required.
 5. Copy the three environment-specific pipeline files:
    - `pipelines/rebuild-configuration.example.yml` → `pipelines/rebuild-configuration.yml`
    - `pipelines/update-definitions.example.yml` → `pipelines/update-definitions.yml`
@@ -374,25 +374,12 @@ Use when a new version of the framework (pipelines, scripts, Bicep modules) is r
 
 > This pipeline syncs **framework files only** — it never touches `source/own/`, `configurations/`, `scripts/deployment-config.json`, nor local data exports in `docs/`.
 
-### Prerequisite — GitHub service connection
+### Prerequisite — public GitHub repository
 
-Before the pipeline can be run for the first time, create a **GitHub service connection** in Azure DevOps with the exact name expected by the pipeline:
-
-```
-sc-chrispolewiak-github-azurepolicy
-```
-
-Steps:
-
-1. In ADO, go to **Project Settings → Service connections → New service connection**.
-2. Select **GitHub**.
-3. Choose authentication method — recommended: **GitHub App** or **Personal Access Token (PAT)**.
-   - PAT requires at least `repo` (read) scope.
-4. Set the **Service connection name** — can be any name (your naming convention).
-5. Check **Grant access permission to all pipelines** (or limit to the `sync-framework` pipeline).
-6. Save.
-
-Then update `endpoint:` in your local `pipelines/sync-framework.yml` to match the name you chose.
+The framework repository is public, so the pipeline downloads it anonymously over
+HTTPS. No GitHub service connection, PAT, SSH key, or `endpoint` configuration is
+required. The Azure DevOps service connection used by the pipeline remains required
+for its Azure/ADO operations.
 
 ### Step F1 — Run the sync-framework pipeline
 
