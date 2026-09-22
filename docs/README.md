@@ -255,7 +255,7 @@ Columns processed by the script — described in [REFERENCE.md → TSV format](R
 Open `configuration/Azure-Policy.xlsx` → **Parameters** tab and update parameter values for the relevant sets (Parameter Set).
 
 For assignments targeted at the root Management Group, use `ROOT` in the
-`Assignment Scope` column. The generator resolves this alias to
+`Assignment Scope` column and `MG` in `Scope Type`. The generator resolves this alias to
 `deployment.definitionManagementGroupId` from `configuration/deployment-config.json`.
 See [TSV format](../configuration/TSV-FORMAT.md#assignment-scope-root) for an example.
 

@@ -80,6 +80,18 @@ def is_subscription_scope(scope_id: str) -> bool:
     return all(len(part) == exp for part, exp in zip(parts, expected))
 
 
+def normalize_scope_type(scope_type: str) -> str:
+    """Map supported scope-type aliases to the generated configuration value."""
+    normalized = re.sub(r"[\s_-]+", "", normalize_value(scope_type).lower())
+    if normalized in {"mg", "managementgroup"}:
+        return "managementGroup"
+    if normalized in {"sub", "sb", "subscription"}:
+        return "subscription"
+    raise ValueError(
+        "Scope Type must be one of: MG, managementgroup, SUB, SB, subscription."
+    )
+
+
 def is_guid(value: str) -> bool:
     """Return True when *value* is a canonical GUID string."""
     return bool(re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", normalize_value(value)))
@@ -147,6 +159,11 @@ def normalize_assignment_scope(scope_id: str, deployment_config: Dict[str, Any])
     management-group IDs can also look like GUIDs.
     """
     normalized = normalize_value(scope_id)
+    if normalized.lower().startswith("/subscriptions/"):
+        subscription_id = normalized.rstrip("/").rsplit("/", 1)[-1]
+        if is_guid(subscription_id):
+            return subscription_id
+
     if normalized.upper() != "ROOT":
         return normalized
 
@@ -241,8 +258,13 @@ def build_json_payloads(
 
     for row in rows:
         internal_id = normalize_value(row.get("InternalID", ""))
+        raw_assignment_scope = normalize_value(row.get("Assignment Scope", ""))
+        is_root_management_group_scope = raw_assignment_scope.upper() == "ROOT"
+        scope_type = normalize_scope_type(row.get("Scope Type", ""))
+        if is_root_management_group_scope and scope_type != "managementGroup":
+            raise ValueError("Assignment Scope ROOT requires Scope Type MG or managementgroup.")
         assignment_scope = normalize_assignment_scope(
-            row.get("Assignment Scope", ""), deployment_config
+            raw_assignment_scope, deployment_config
         )
         parameter_set = normalize_value(row.get("Parameter Set", ""))
         effect_value = normalize_value(row.get("DeployIfNotExists", ""))
@@ -271,7 +293,6 @@ def build_json_payloads(
             continue
 
         # Build the common part of the assignment entry shared by both types.
-        scope_type = "subscription" if is_subscription_scope(assignment_scope) else "managementGroup"
         assignment_entry = {
             # ARM resource name must be ≤24 chars; use InternalID (e.g. ap001) as a
             # stable short resource name and keep the human-readable label as displayName.

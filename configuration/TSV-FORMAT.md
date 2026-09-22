@@ -22,7 +22,8 @@ One row per policy assignment. Rows with `Deploy=FALSE` are skipped by default.
 | --- | --- | --- |
 | `InternalID` | ✓ | Unique tracking identifier (e.g. `AP2026-04-28_0001`) — used as the ARM resource name and UAMI name suffix |
 | `Deploy` | ✓ | `TRUE` / `FALSE` — rows with `FALSE` are skipped |
-| `Assignment Scope` | ✓ | Management Group name, subscription UUID, or the reserved alias `ROOT` |
+| `Assignment Scope` | ✓ | Management Group ID, subscription ID, or the reserved alias `ROOT` |
+| `Scope Type` | ✓ | `MG` / `managementgroup` for a Management Group, or `SUB` / `SB` / `subscription` for a subscription |
 | `Assignment Name` | ✓ | Human-readable display name for the assignment |
 | `DefinitionType` or `Type` | ✓ | `Initiative` or `Policy` |
 | `Definition Name` | ✓ | Initiative or policy display name |
@@ -41,7 +42,7 @@ Use `ROOT` in `Assignment Scope` when the assignment must be created at the root
 Management Group configured for this environment:
 
 ```tsv
-AP2026-01-01_0004	TRUE	ROOT	contoso-root-guardrails	Initiative	Root guardrails	Contoso-Root-Guardrails
+AP2026-01-01_0004	TRUE	ROOT	MG	contoso-root-guardrails	Initiative	Root guardrails	Contoso-Root-Guardrails
 ```
 
 The generator resolves `ROOT` to `deployment.definitionManagementGroupId` from
@@ -53,10 +54,10 @@ Management Group ID.
 ### Minimal example
 
 ```tsv
-InternalID	Deploy	Assignment Scope	Assignment Name	DefinitionType	Definition Name	ID
-AP2026-01-01_0001	TRUE	mg-contoso-root	contoso-deny-public-paas	Initiative	Deny Public PaaS Endpoints	Deny-PublicPaaSEndpoints
-AP2026-01-01_0002	TRUE	mg-contoso-root	contoso-allowed-locations	Policy	Allowed locations	e56962a6-4747-49cd-b67b-bf8b01975c4c
-AP2026-01-01_0003	FALSE	mg-contoso-root	contoso-not-deployed-yet	Initiative	Enforce ALZ Decomm	Enforce-ALZ-Decomm
+InternalID	Deploy	Assignment Scope	Scope Type	Assignment Name	DefinitionType	Definition Name	ID
+AP2026-01-01_0001	TRUE	mg-contoso-root	MG	contoso-deny-public-paas	Initiative	Deny Public PaaS Endpoints	Deny-PublicPaaSEndpoints
+AP2026-01-01_0002	TRUE	00000000-0000-0000-0000-000000000000	SUB	contoso-allowed-locations	Policy	Allowed locations	e56962a6-4747-49cd-b67b-bf8b01975c4c
+AP2026-01-01_0003	FALSE	mg-contoso-root	managementgroup	contoso-not-deployed-yet	Initiative	Enforce ALZ Decomm	Enforce-ALZ-Decomm
 ```
 
 ---
