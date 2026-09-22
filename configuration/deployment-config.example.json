@@ -13,7 +13,7 @@
       "managedBy": "contoso-policy-by-code",
       "resourcePurpose": "azure-policy-assignment-identity",
       "cleanupHint": "safe-to-delete-with-assignment",
-      "sourceRepo": ""
+      "sourceRepo": "https://github.com/ChrisPolewiak/AzurePolicy"
     }
   },  
   "paths": {
