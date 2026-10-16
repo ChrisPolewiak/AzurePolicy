@@ -26,7 +26,7 @@ Policy definitions and initiatives are sourced from [Azure/Enterprise-Scale](htt
 ├── configuration/      # Source of truth: Excel, TSV exports, deployment config
 ├── docs/               # Documentation
 ├── generated/          # AUTO-GENERATED config JSON (in .gitignore, passed via artifact)
-├── pipelines/          # Azure DevOps pipeline definitions (YAML)
+├── .pipelines/         # Azure DevOps pipeline definitions (YAML)
 ├── scripts/            # Bash scripts (fetch, generate, deploy, cleanup)
 └── source/
     ├── EnterpriseALZ/  # Snapshot from GitHub Azure/Enterprise-Scale (in .gitignore, passed via artifact)

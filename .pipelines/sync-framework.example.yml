@@ -2,7 +2,7 @@ trigger: none
 pr: none
 
 # SETUP (one-time, per ADO project):
-#   Copy this file to pipelines/sync-framework.yml.
+#   Copy this file to .pipelines/sync-framework.yml.
 #   sync-framework.yml is in .gitignore — it stays local in your ADO repository, never on GitHub.
 
 parameters:
@@ -52,12 +52,12 @@ steps:
       --exclude='docs/*.csv' \
       --exclude='docs/*.xlsx' \
       --exclude='docs/*.xls' \
-      --exclude='pipelines/fetch-policies.yml' \
-      --exclude='pipelines/sync-framework.yml' \
-      --exclude='pipelines/rebuild-configuration.yml' \
-      --exclude='pipelines/update-definitions.yml' \
-      --exclude='pipelines/update-assignments.yml' \
-      --exclude='pipelines/cleanup.yml' \
+      --exclude='.pipelines/fetch-policies.yml' \
+      --exclude='.pipelines/sync-framework.yml' \
+      --exclude='.pipelines/rebuild-configuration.yml' \
+      --exclude='.pipelines/update-definitions.yml' \
+      --exclude='.pipelines/update-assignments.yml' \
+      --exclude='.pipelines/cleanup.yml' \
       $(Agent.BuildDirectory)/_framework_tmp/ $(Build.SourcesDirectory)/
 
     echo "##[section]Changes after sync:"

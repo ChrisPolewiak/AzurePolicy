@@ -200,13 +200,13 @@ Checks:
 
 ### create-ado-pipelines.sh
 
-**Purpose:** Creates all Azure DevOps pipeline definitions from YAML files in `pipelines/` using the Azure CLI (`az pipelines create`). Idempotent — skips pipelines that already exist.
+**Purpose:** Creates all Azure DevOps pipeline definitions from YAML files in `.pipelines/` using the Azure CLI (`az pipelines create`). Idempotent — skips pipelines that already exist.
 
 **Requirements:**
 
 - Azure CLI with the `azure-devops` extension (`az extension add --name azure-devops`)
 - Active login: `az login` or service principal context
-- `pipelines/sync-framework.yml` must exist in the ADO repo before this pipeline can be created (it is gitignored; copy from `sync-framework.example.yml` first)
+- `.pipelines/sync-framework.yml` must exist in the ADO repo before this pipeline can be created (it is gitignored; copy from `sync-framework.example.yml` first)
 
 **Usage:**
 
@@ -231,12 +231,12 @@ scripts/create-ado-pipelines.sh --org <org-url> --project <project> [options]
 
 | Name (base) | Name with suffix example | YAML path |
 | --- | --- | --- |
-| `A-fetch-policies` | `A-fetch-policies-DEV` | `pipelines/fetch-policies.yml` |
-| `B-rebuild-configuration` | `B-rebuild-configuration-DEV` | `pipelines/rebuild-configuration.yml` |
-| `C-update-definitions` | `C-update-definitions-DEV` | `pipelines/update-definitions.yml` |
-| `D-update-assignments` | `D-update-assignments-DEV` | `pipelines/update-assignments.yml` |
-| `E-cleanup` | `E-cleanup-DEV` | `pipelines/cleanup.yml` |
-| `F-sync-framework` | `F-sync-framework-DEV` | `pipelines/sync-framework.yml` |
+| `A-fetch-policies` | `A-fetch-policies-DEV` | `.pipelines/fetch-policies.yml` |
+| `B-rebuild-configuration` | `B-rebuild-configuration-DEV` | `.pipelines/rebuild-configuration.yml` |
+| `C-update-definitions` | `C-update-definitions-DEV` | `.pipelines/update-definitions.yml` |
+| `D-update-assignments` | `D-update-assignments-DEV` | `.pipelines/update-assignments.yml` |
+| `E-cleanup` | `E-cleanup-DEV` | `.pipelines/cleanup.yml` |
+| `F-sync-framework` | `F-sync-framework-DEV` | `.pipelines/sync-framework.yml` |
 
 > **Multi-environment setup:** pipelines B, C and D (`rebuild-configuration.yml`, `update-definitions.yml`,
 > `update-assignments.yml`) contain hardcoded `source:` references to upstream pipeline names.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # create-ado-pipelines.sh
-# Creates Azure DevOps pipelines from YAML files in pipelines/ using the Azure CLI.
+# Creates Azure DevOps pipelines from YAML files in .pipelines/ using the Azure CLI.
 #
 # Requires:
 #   - Azure CLI: https://learn.microsoft.com/cli/azure/install-azure-cli
@@ -42,12 +42,12 @@ DRY_RUN=false
 
 # Pipeline definitions: "display-name|yaml-path"
 PIPELINES=(
-  "A-fetch-policies|pipelines/fetch-policies.yml"
-  "B-rebuild-configuration|pipelines/rebuild-configuration.yml"
-  "C-update-definitions|pipelines/update-definitions.yml"
-  "D-update-assignments|pipelines/update-assignments.yml"
-  "E-cleanup|pipelines/cleanup.yml"
-  "F-sync-framework|pipelines/sync-framework.yml"
+  "A-fetch-policies|.pipelines/fetch-policies.yml"
+  "B-rebuild-configuration|.pipelines/rebuild-configuration.yml"
+  "C-update-definitions|.pipelines/update-definitions.yml"
+  "D-update-assignments|.pipelines/update-assignments.yml"
+  "E-cleanup|.pipelines/cleanup.yml"
+  "F-sync-framework|.pipelines/sync-framework.yml"
 )
 
 # ---------------------------------------------------------------------------

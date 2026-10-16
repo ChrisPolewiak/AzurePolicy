@@ -49,7 +49,7 @@ Technical details (file formats, script descriptions, Bicep structure): [REFEREN
 │   ├── policy-parameters.tsv             # Export from Excel — input for scripts
 │   └── README.md                         # Migration notes for config location
 ├── docs/
-├── pipelines/
+├── .pipelines/
 │   ├── fetch-policies.yml                # Pipeline A: fetch GH snapshot → artifact policy-source
 │   ├── rebuild-configuration.yml         # Pipeline B: fetch policy-source → generate → artifact policy-generated
 │   ├── update-definitions.yml            # Pipeline C: fetch policy-generated → deploy to MG
@@ -75,12 +75,12 @@ Before running any pipeline, create local configuration files in your ADO reposi
 2. Fill in your values:
    - `devopsManagedPool` — name of your ADO agent pool (e.g. `Default` or a self-hosted pool).
    - `serviceConnectionName` — name of the Azure DevOps service connection for Azure CLI tasks.
-3. Copy `pipelines/sync-framework.example.yml` to `pipelines/sync-framework.yml`.
+3. Copy `.pipelines/sync-framework.example.yml` to `.pipelines/sync-framework.yml`.
 4. The public GitHub repository is downloaded anonymously by the pipeline; no GitHub service connection or key is required.
 5. Copy the three environment-specific pipeline files:
-   - `pipelines/rebuild-configuration.example.yml` → `pipelines/rebuild-configuration.yml`
-   - `pipelines/update-definitions.example.yml` → `pipelines/update-definitions.yml`
-   - `pipelines/update-assignments.example.yml` → `pipelines/update-assignments.yml`
+   - `.pipelines/rebuild-configuration.example.yml` → `.pipelines/rebuild-configuration.yml`
+   - `.pipelines/update-definitions.example.yml` → `.pipelines/update-definitions.yml`
+   - `.pipelines/update-assignments.example.yml` → `.pipelines/update-assignments.yml`
 6. In each of the three files, replace `<SUFFIX>` in the `source:` field with your environment suffix
    (e.g. `-DEV`, `-PRD`) or remove `<SUFFIX>` entirely for a single-environment setup.
    The suffix must match the value passed as `--name-suffix` to `create-ado-pipelines.sh`.

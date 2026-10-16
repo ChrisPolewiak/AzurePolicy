@@ -2,7 +2,7 @@ trigger: none
 pr: none
 
 # SETUP (one-time, per ADO project):
-#   Copy this file to pipelines/cleanup.yml
+#   Copy this file to .pipelines/cleanup.yml
 #   cleanup.yml is in .gitignore — it stays in your ADO repository only, never on GitHub.
 
 parameters:

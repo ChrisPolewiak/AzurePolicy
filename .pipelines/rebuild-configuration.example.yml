@@ -2,7 +2,7 @@ trigger: none
 pr: none
 
 # SETUP (one-time, per ADO project):
-#   Copy this file to pipelines/rebuild-configuration.yml
+#   Copy this file to .pipelines/rebuild-configuration.yml
 #   and update the source: field to match the upstream pipeline name registered in ADO.
 #   rebuild-configuration.yml is in .gitignore — it stays in your ADO repository only, never on GitHub.
 #

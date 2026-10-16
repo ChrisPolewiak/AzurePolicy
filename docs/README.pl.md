@@ -49,7 +49,7 @@ Szczegóły techniczne (formaty plików, opisy skryptów, struktura Bicep): [REF
 │   ├── policy-parameters.tsv             # Export z Excela — dane dla skryptu
 │   └── README.md                         # Notatki migracyjne dla lokalizacji konfiguracji
 ├── docs/
-├── pipelines/
+├── .pipelines/
 │   ├── fetch-policies.yml                # Pipeline A: pobierz snapshot GH → artefakt policy-source
 │   ├── rebuild-configuration.yml         # Pipeline B: pobierz policy-source → generuj → artefakt policy-generated
 │   ├── update-definitions.yml            # Pipeline C: pobierz policy-generated → wdróż do MG
@@ -75,12 +75,12 @@ Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalne pliki konfi
 2. Uzupełnij wartości:
    - `devopsManagedPool` — nazwa puli agentów ADO (np. `Default` lub pula self-hosted).
    - `serviceConnectionName` — nazwa Azure DevOps service connection do zadań Azure CLI.
-3. Skopiuj `pipelines/sync-framework.example.yml` jako `pipelines/sync-framework.yml`.
+3. Skopiuj `.pipelines/sync-framework.example.yml` jako `.pipelines/sync-framework.yml`.
 4. Publiczne repozytorium GitHub jest pobierane anonimowo przez pipeline; GitHub service connection ani klucz nie są wymagane.
 5. Skopiuj trzy pliki pipeline’ów dla konkretnego środowiska:
-   - `pipelines/rebuild-configuration.example.yml` → `pipelines/rebuild-configuration.yml`
-   - `pipelines/update-definitions.example.yml` → `pipelines/update-definitions.yml`
-   - `pipelines/update-assignments.example.yml` → `pipelines/update-assignments.yml`
+   - `.pipelines/rebuild-configuration.example.yml` → `.pipelines/rebuild-configuration.yml`
+   - `.pipelines/update-definitions.example.yml` → `.pipelines/update-definitions.yml`
+   - `.pipelines/update-assignments.example.yml` → `.pipelines/update-assignments.yml`
 6. W każdym z trzech plików zastąp `<SUFFIX>` w polu `source:` sufiksem środowiska
    (np. `-DEV`, `-PRD`) lub usuń `<SUFFIX>` całkowicie dla konfiguracji jednego środowiska.
    Sufiks musi odpowiadać wartości podanej jako `--name-suffix` w `create-ado-pipelines.sh`.
