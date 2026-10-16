@@ -240,8 +240,8 @@ scripts/create-ado-pipelines.sh --org <org-url> --project <project> [options]
 
 > **Multi-environment setup:** pipelines B, C and D (`rebuild-configuration.yml`, `update-definitions.yml`,
 > `update-assignments.yml`) contain hardcoded `source:` references to upstream pipeline names.
-> These files are gitignored. Copy from the `.example.yml` templates and replace `<SUFFIX>`
-> in each `source:` field with the same value passed to `--name-suffix`.
+> These files are gitignored. Copy from the `.example.yml` templates, which default to names without a suffix.
+> If using `--name-suffix`, append the same suffix to each `source:` value.
 
 **Example:**
 

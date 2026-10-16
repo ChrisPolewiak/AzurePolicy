@@ -239,8 +239,8 @@ scripts/create-ado-pipelines.sh --org <org-url> --project <project> [opcje]
 
 > **Konfiguracja wielu środowisk:** pipeline'y B, C i D (`rebuild-configuration.yml`, `update-definitions.yml`,
 > `update-assignments.yml`) zawierają zakodowane na stałe referencje `source:` do nazw pipeline’ów upstream.
-> Te pliki są gitignored. Skopiuj z szablonów `.example.yml` i zastąp `<SUFFIX>`
-> w każdym polu `source:` wartością podaną jako `--name-suffix`.
+> Te pliki są gitignored. Skopiuj z szablonów `.example.yml`, które domyślnie zawierają nazwy bez sufiksu.
+> Jeśli używasz `--name-suffix`, dopisz ten sam sufiks do każdej wartości `source:`.
 
 **Przykłady:**
 

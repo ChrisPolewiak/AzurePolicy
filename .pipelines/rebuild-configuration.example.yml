@@ -6,8 +6,8 @@ pr: none
 #   and update the source: field to match the upstream pipeline name registered in ADO.
 #   rebuild-configuration.yml is in .gitignore — it stays in your ADO repository only, never on GitHub.
 #
-#   Replace <SUFFIX> in source: with your environment suffix (e.g. -DEV, -PRD)
-#   or remove <SUFFIX> entirely for a single-environment setup.
+#   The source: value defaults to the pipeline name without an environment suffix.
+#   If using --name-suffix, append that suffix to the source: value (e.g. -DEV, -PRD).
 #   The value must match exactly the ADO pipeline name registered by create-ado-pipelines.sh.
 #   Examples:
 #     source: A-fetch-policies-DEV
@@ -22,7 +22,7 @@ parameters:
 resources:
   pipelines:
   - pipeline: fetch-policies
-    source: A-fetch-policies<SUFFIX>  # SETUP: replace <SUFFIX> with your suffix or remove it
+    source: A-fetch-policies
     trigger: none
 
 variables:

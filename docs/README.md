@@ -81,9 +81,9 @@ Before running any pipeline, create local configuration files in your ADO reposi
    - `.pipelines/rebuild-configuration.example.yml` → `.pipelines/rebuild-configuration.yml`
    - `.pipelines/update-definitions.example.yml` → `.pipelines/update-definitions.yml`
    - `.pipelines/update-assignments.example.yml` → `.pipelines/update-assignments.yml`
-6. In each of the three files, replace `<SUFFIX>` in the `source:` field with your environment suffix
-   (e.g. `-DEV`, `-PRD`) or remove `<SUFFIX>` entirely for a single-environment setup.
-   The suffix must match the value passed as `--name-suffix` to `create-ado-pipelines.sh`.
+6. The `source:` fields default to pipeline names without an environment suffix.
+   If using `--name-suffix` with `create-ado-pipelines.sh`, append the same suffix
+   (e.g. `-DEV`, `-PRD`) to the `source:` value in each of the three files.
 7. All files are in `.gitignore` — they stay in your ADO repo only and are never committed to GitHub.
 
 > Service connection setup: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
