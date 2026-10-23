@@ -24,7 +24,6 @@ Instrukcja użytkowania (procesy dla operatora): [README.pl.md](README.pl.md)
    - [parameters.json](#parametersjson)
 5. [Struktura szablonów i Bicep](#struktura-szablonów-i-bicep)
 6. [Śledzenie wersji snapshotu](#śledzenie-wersji-snapshotu)
-7. [Rozbudowa — exemptions](#rozbudowa--exemptions)
 
 ---
 
@@ -291,13 +290,18 @@ scripts/cleanup.sh [--delete] [--with-definitions] [--assignment <name>]
 
 | Zasób | Metoda |
 | --- | --- |
-| Przypisania polityk | `az graph query` na tabeli `PolicyResources` po `properties.metadata.assignedBy` |
-| UAMIs (tryb selektywny) | Wyodrębniane z `identity.userAssignedIdentities` znalezionego przypisania |
-| UAMIs (tryb pełny) | `az identity list` filtrowane po tagu `managedBy` w skonfigurowanej grupie zasobów |
-| Definicje polityk | `az policy definition list` filtrowane po `properties.metadata.managedBy` |
-| Inicjatywy | `az policy set-definition list` filtrowane po `properties.metadata.managedBy` |
+| Przypisania polityk | Stronicowane zapytanie REST Resource Graph na `PolicyResources`; dokładna zgodność `properties.metadata.assignedBy` |
+| UAMI (tryb selektywny) | Używane przez wybrane przypisania, ze zgodnym `tags.managedBy`; bez współdzielonych tożsamości |
+| UAMI (tryb pełny) | Jak wyżej oraz oznaczone osierocone UAMI w skonfigurowanej subskrypcji/RG, z `Resources` |
+| Przypisania RBAC | `AuthorizationResources` filtrowane po `principalId` tożsamości przeznaczonych do usunięcia |
+| Definicje / inicjatywy | `PolicyResources` ze zgodnym `properties.metadata.managedBy` |
 
 Wszystkie wartości są porównywane z `managementTag` w `configuration/deployment-config.json`.
+
+Wymaga Azure CLI i jq. Cała lista powstaje przed usuwaniem; błędy zapytań/usuwania przerywają run.
+Kolejność: przypisania, RBAC tożsamości, UAMI, inicjatywy, definicje.
+Nie można łączyć `--assignment` z `--with-definitions`. Ograniczenia scope i widoczności
+opisuje [przewodnik operatora](README.pl.md#cleanup-podgląd-sprawdzenie-usunięcie).
 
 **Przykłady:**
 
@@ -319,7 +323,7 @@ scripts/cleanup.sh --assignment AP202604290022 --delete
 
 ## Formaty plików TSV
 
-Pełna dokumentacja kolumn z przykładami: [docs/TSV-FORMAT.md](docs/TSV-FORMAT.md)
+Pełna dokumentacja kolumn z przykładami: [Format TSV](../configuration/TSV-FORMAT.md)
 
 ---
 
@@ -441,14 +445,3 @@ cat source/.snapshot-version
 
 Plik jest automatycznie aktualizowany przez skrypt i powinien być commitowany do repozytorium
 razem z plikami w `source/`.
-
----
-
-## Rozbudowa — exemptions
-
-Aby dodać obsługę wyjątków (Policy Exemptions):
-
-1. Utwórz `generated/exemptions.json` z tablicą wyjątków (analogicznie do `assignments.json`).
-2. Utwórz `bicep/exemptions.bicep` z pętlą resource `Microsoft.Authorization/policyExemptions@2022-07-01-preview`.
-3. Dodaj moduł `exemptions` do `bicep/assignments.bicep`.
-4. Opcjonalnie rozszerz `generate_config_from_table.py` o obsługę dodatkowej zakładki Excel.

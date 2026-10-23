@@ -1,430 +1,162 @@
-# Azure Policy by Code
+# Przewodnik operatora
 
-Repozytorium wdraża definicje i przypisania Azure Policy w modelu Policy as Code, zgodnym z podejściem Azure Landing Zone (ALZ / Enterprise Scale).
+[English](README.md) | [Dokumentacja techniczna](REFERENCE.pl.md) | [Format TSV](../configuration/TSV-FORMAT.md)
 
-Szczegóły techniczne (formaty plików, opisy skryptów, struktura Bicep): [REFERENCE.pl.md](REFERENCE.pl.md)
+## Co uruchomić?
 
----
+| Chcę... | Co robię |
+| --- | --- |
+| Wdrożyć po raz pierwszy | Konfiguracja poniżej, potem **A → B → C → D** |
+| Zmienić scope, parametry lub aktywne wiersze przypisań | Excel, eksport TSV, potem **B → D** |
+| Zmienić własną politykę lub inicjatywę | Edycja `source/own/`, potem **B → C → D** |
+| Zaktualizować definicje Microsoft ALZ | **A → B → C → D** |
+| Podejrzeć zmiany przypisań | **D** z `deployMode=whatif` |
+| Usunąć zarządzane zasoby polityk | **E**, najpierw samo wyświetlenie listy |
+| Zaktualizować skrypty, moduły i szablony pipeline'ów z GitHub | **F**, najpierw podgląd |
 
-## Spis treści
+**B buduje, C i D wdrażają.** Sama zmiana Excela niczego nie zmienia w Azure.
+Jeśli potrzebne są nowe definicje, wdróż je krokiem C przed D.
+Usunięcie wiersza TSV nie jest poleceniem usunięcia przypisania z Azure; stare przypisania sprawdź osobno.
 
-1. [Struktura repozytorium](#struktura-repozytorium)
-2. [Konfiguracja początkowa ADO](#konfiguracja-początkowa-ado-jednorazowo)
-3. [Proces A — fetch-policies](#proces-a--fetch-policies)
-4. [Proces B — rebuild-configuration](#proces-b--rebuild-configuration)
-5. [Proces C — update-definitions](#proces-c--update-definitions)
-6. [Proces D — update-assignments](#proces-d--update-assignments)
-7. [Proces E — cleanup](#proces-e--cleanup)
-8. [Proces F — sync-framework](#proces-f--sync-framework)
+## Konfiguracja jednorazowa
 
----
+Pracuj w **repozytorium wdrożeniowym Azure DevOps**. GitHub zawiera wspólny framework;
+konfiguracja środowiska, Excel i własne definicje należą do repo wdrożeniowego.
 
-## Struktura repozytorium
+1. Skopiuj [deployment-config.example.json](../configuration/deployment-config.example.json) do
+   `configuration/deployment-config.json`. Ustaw główną MG, lokalizacje, znacznik właściciela
+   (`managementTag`) oraz subskrypcję/RG dla UAMI polityk.
+2. Utwórz wcześniej tę RG dla tożsamości.
+3. Skopiuj [ado-env.example.yml](../configuration/ado-env.example.yml) do `configuration/ado-env.yml`.
+   Uzupełnij `devopsManagedPool` i `serviceConnectionName`.
+4. Skonfiguruj service connection Azure Resource Manager z UAMI pipeline'u i workload identity
+   federation. Autoryzuj ją dla pipeline'ów i nadaj role z tabeli poniżej.
+5. Skopiuj sześć [przykładów pipeline'ów](../.pipelines/) z `*.example.yml` do `*.yml`
+   i zarejestruj pipeline'y A–F w ADO. Zobacz [instrukcję konfiguracji](../.pipelines/README.md).
+   Nazwy w `source:` muszą dokładnie odpowiadać nazwom w ADO:
+   domyślnie `A-fetch-policies` i `B-rebuild-configuration`.
+   Jeśli dodasz sufiks środowiska, stosuj go konsekwentnie.
+6. Nie wysyłaj konfiguracji środowiska na publiczny GitHub. Przed pushem sprawdź śledzone pliki:
+   `.gitignore` nie przestaje śledzić plików dodanych wcześniej.
 
-```text
-.
-├── bicep/
-│   ├── policyDefinitions/                # AUTO-GENERATED ARM JSON — w .gitignore, przekazywany przez artefakt
-│   ├── policySetDefinitions/             # AUTO-GENERATED ARM JSON — w .gitignore, przekazywany przez artefakt
-│   ├── assignments.bicep                 # Iteruje po assignments.json i wywołuje moduły MG/Sub
-│   ├── policyAssignmentManagementGroup.bicep  # Moduł przypisania do Management Group
-│   └── policyAssignmentSubscription.bicep     # Moduł przypisania do Subscription
-├── generated/
-│   ├── initiatives.json                  # AUTO-GENERATED — w .gitignore, przekazywany przez artefakt
-│   ├── assignments.json                  # AUTO-GENERATED — w .gitignore, przekazywany przez artefakt
-│   └── parameters.json                   # AUTO-GENERATED — w .gitignore, przekazywany przez artefakt
-├── source/
-│   ├── EnterpriseALZ/
-│   │   ├── policyDefinitions/            # Snapshot JSON z GitHub Azure/Enterprise-Scale
-│   │   ├── policySetDefinitions/         # Snapshot JSON z GitHub Azure/Enterprise-Scale
-│   │   └── .snapshot-version             # Aktualna wersja/tag snapshotu z GH
-│   ├── own/
-│   │   ├── policyDefinitions/            # Własne definicje polityk
-│   │   └── policySetDefinitions/         # Własne inicjatywy polityk
-├── configuration/
-│   ├── deployment-config.json            # Lokalna konfiguracja runtime (ignorowana przez git)
-│   ├── deployment-config.example.json    # Szablon deployment-config.json
-│   ├── Azure-Policy.xlsx                 # Źródło prawdy — przypisania (do edycji)
-│   ├── policy-assignments.tsv            # Export z Excela — dane dla skryptu
-│   ├── policy-parameters.tsv             # Export z Excela — dane dla skryptu
-│   └── README.md                         # Notatki migracyjne dla lokalizacji konfiguracji
-├── docs/
-├── .pipelines/
-│   ├── fetch-policies.yml                # Pipeline A: pobierz snapshot GH → artefakt policy-source
-│   ├── rebuild-configuration.yml         # Pipeline B: pobierz policy-source → generuj → artefakt policy-generated
-│   ├── update-definitions.yml            # Pipeline C: pobierz policy-generated → wdróż do MG
-│   └── update-assignments.yml            # Pipeline D: pobierz policy-generated → what-if → wdróż do tenant
-├── scripts/
-│   ├── fetch-policies.sh                 # Pobiera snapshot z GitHub Azure/Enterprise-Scale
-│   ├── rebuild-configuration.sh          # Generuje ARM JSON + config JSON + walidacja
-│   ├── update-definitions.sh             # Wdraża policyDefinitions i policySetDefinitions do Management Group
-│   ├── update-assignments.sh             # What-if + opcjonalny deploy przypisań do tenant
-│   ├── generate_arm_from_source.py  # Generuje ARM JSON szablony dla polityk i inicjatyw
-│   ├── generate_config_from_table.py     # Generuje generated/*.json z plików TSV/CSV
-│   └── validate-config.sh                # Waliduje poprawność generated/*.json przed wdrożeniem
-└── REFERENCE.md                          # Dokumentacja techniczna
-```
+Agent potrzebuje narzędzi używanych przez skrypty, m.in. Bash, Azure CLI, Python 3 i jq.
 
----
+### Uprawnienia UAMI pipeline'u
 
-## Konfiguracja początkowa ADO (jednorazowo)
+Role nadaj na **principal/object ID**, nie client ID.
+Ta tożsamość uruchamia pipeline; **UAMI polityk** to osobne tożsamości używane do remediacji.
 
-Przed pierwszym uruchomieniem dowolnego pipeline’a utwórz lokalne pliki konfiguracyjne w repozytorium ADO:
-
-1. Skopiuj `configuration/ado-env.example.yml` jako `configuration/ado-env.yml`.
-2. Uzupełnij wartości:
-   - `devopsManagedPool` — nazwa puli agentów ADO (np. `Default` lub pula self-hosted).
-   - `serviceConnectionName` — nazwa Azure DevOps service connection do zadań Azure CLI.
-3. Skopiuj `.pipelines/sync-framework.example.yml` jako `.pipelines/sync-framework.yml`.
-4. Publiczne repozytorium GitHub jest pobierane anonimowo przez pipeline; GitHub service connection ani klucz nie są wymagane.
-5. Skopiuj trzy pliki pipeline’ów dla konkretnego środowiska:
-   - `.pipelines/rebuild-configuration.example.yml` → `.pipelines/rebuild-configuration.yml`
-   - `.pipelines/update-definitions.example.yml` → `.pipelines/update-definitions.yml`
-   - `.pipelines/update-assignments.example.yml` → `.pipelines/update-assignments.yml`
-6. Pola `source:` domyślnie zawierają nazwy pipeline’ów bez sufiksu środowiska.
-   Jeśli używasz `--name-suffix` w `create-ado-pipelines.sh`, dopisz ten sam sufiks
-   (np. `-DEV`, `-PRD`) do wartości `source:` w każdym z trzech plików.
-7. Wszystkie pliki są w `.gitignore` — pozostają tylko w repozytorium ADO, nigdy nie trafiają na GitHub.
-
-> Konfiguracja service connection: ADO **Project Settings** → **Service connections** → **New service connection** → **Azure Resource Manager** → Service principal (automatic).
-> Nadaj mu uprawnienia **Contributor** + **User Access Administrator** na poziomie Management Group.
-
----
-
-## Proces A — fetch-policies
-
-Stosuj gdy Microsoft wypuścił nową wersję definicji w repozytorium
-[Azure/Enterprise-Scale](https://github.com/Azure/Enterprise-Scale) i chcesz zaktualizować snapshoty.
-
-Pipeline wykonuje `fetch-policies.sh` i **publikuje artefakt `policy-source`** (katalog `source/`), który jest wejściem dla Procesu B.
-
-> `source/` jest w `.gitignore` — nie trafia do repozytorium, żyje tylko jako artefakt pipeline'a.
-
-### Krok A1 — Sprawdź aktualną wersję snapshotu
-
-Sprawdź listę tagów/commitów na GitHubie: <https://github.com/Azure/Enterprise-Scale/releases>
-
-### Krok A2 — Uruchom pipeline fetch-policies
-
-Uruchom pipeline **`fetch-policies`** (ręcznie, trigger: none):
-
-| Parametr | Domyślnie | Opis |
+| Scope | Rola | Po co |
 | --- | --- | --- |
-| `policyVersion` | `main` | Tag lub commit SHA z Azure/Enterprise-Scale |
+| **Root MG** (zalecane) lub główna MG obejmująca wszystkie zarządzane scope | **Resource Policy Contributor** | Zarządzanie politykami, inicjatywami, przypisaniami, remediacją i wdrożeniami polityk |
+| **Dokładnie ten sam scope MG** | **Role Based Access Control Administrator**, z warunkiem delegowania | Tworzenie/usuwanie przypisań ról UAMI polityk; wyklucz **Owner**, **Role Based Access Control Administrator** i **User Access Administrator** dla obu operacji |
+| **RG z UAMI polityk** | **Managed Identity Contributor** | Tworzenie, aktualizacja i usuwanie UAMI |
+| **Ta sama RG z UAMI** | **Managed Identity Operator** | Podpinanie UAMI do przypisań polityk |
+
+Nie nadawaj pipeline'owi Owner ani User Access Administrator. Uprawnienia MG są dziedziczone;
+nie trzeba ich osobno nadawać na każdej podrzędnej MG/subskrypcji. Główna MG nie obejmuje
+zasobów poza swoją hierarchią. Scope Root MG to nie tenant scope `/`.
+Utworzenie RG wymaga osobnych uprawnień; niech administrator przygotuje ją wcześniej.
+UAMI polityk dostają role wymagane przez polityki, nie rolę administratora RBAC pipeline'u.
+
+**Tylko dla polityk Virtual Network Manager `addToNetworkGroup`:** wdrażająca UAMI potrzebuje
+dodatkowo **Network Contributor** na każdej wskazanej network group albo roli niestandardowej z
+`Microsoft.Network/networkManagers/networkGroups/join/action`.
+Błąd `LinkedAuthorizationFailed` z tą akcją wskazuje na dostęp do powiązanej grupy albo
+nieprawidłowy ID. Sprawdź ID/uprawnienia i ponów po propagacji; zmiana remediacyjnych
+`roleDefinitionIds` nie naprawi autoryzacji wdrożenia.
+Zobacz [wymagane uprawnienia Microsoft](https://learn.microsoft.com/en-us/azure/virtual-network-manager/concept-azure-policy-integration#required-permissions).
+
+## Codzienna praca
+
+1. Edytuj swój Excel w [configuration/](../configuration/) (np. `ALZPolicyAssignments.xlsx`).
+2. Skopiuj każdą zmienioną tabelę **razem z nagłówkami** do `configuration/policy-assignments.tsv`
+   lub `configuration/policy-parameters.tsv` w repo wdrożeniowym.
+   Zapisz, zacommituj i wypchnij Excel/eksporty zgodnie z praktyką repozytorium.
+3. Uruchom **B — rebuild-configuration**. Buduje pliki wdrożeniowe i waliduje konfigurację.
+   Sprawdź podsumowanie w wynikach pipeline'u: wskazuje wiersz TSV, definicję i opis problemu.
+   **Nieudany rebuild nie publikuje nowego artefaktu `policy-generated`.**
+4. Jeśli zmieniły się definicje, uruchom **C — update-definitions**.
+5. Uruchom **D — update-assignments** z `deployMode=whatif`. Przejrzyj what-if,
+   a gdy wynik jest właściwy, uruchom ponownie z `deployMode=deploy`.
+   Domyślnie deploy ponawia podgląd i wdraża tylko po jego sukcesie.
+   `skipValidation=true` pomija ten podgląd wyłącznie w trybie `deploy`;
+   nie wyłącza walidacji konfiguracji. Nie ma ręcznej pauzy między podglądem a wdrożeniem.
+
+   Na końcu D znajdziesz tabelę błędów przypisań (scope, etap i komunikat), także
+   w podsumowaniu ADO. Błędy deploymentu, what-if, UAMI lub RBAC powodują nieudany run;
+   wcześniej wykonane zmiany nie są wycofywane.
+
+   Linie `TIME` pokazują czas obsługi UAMI, deploymentu/what-if, odczytu principalId,
+   poszczególnych nadań RBAC oraz łączny czas przetwarzania przypisań. Dla UAMI
+   principalId jest odczytywany bezpośrednio z tożsamości, bez oczekiwania na pole przypisania.
+
+**Wybierz wyniki właściwego uruchomienia pipeline'u.** A publikuje `policy-source`; B pobiera go i publikuje
+`policy-generated`; C i D pobierają artefakt B. D używa wygenerowanej konfiguracji, nie
+świeżo zmienionego TSV bezpośrednio. C czyta też TSV ze swojego checkoutu, więc używaj
+tej samej rewizji źródeł co B. Po błędzie rebuilda nie wdróż przypadkiem starszego udanego artefaktu B.
+Snapshot pochodzi z wybranego artefaktu A; samo ustawienie `policyVersion` w B go nie zastępuje.
+
+### Gdy walidacja zgłosi problem
+
+| Problem | Jak poprawić |
+| --- | --- |
+| Nieprawidłowa nazwa/ID lub typ definicji | Popraw odpowiedni wiersz w Excelu; sprawdź, czy to polityka (`Policy`), czy inicjatywa (`Initiative`) |
+| Brak źródła lub wygenerowanego szablonu | Sprawdź nazwę definicji, własne źródła i wybrany snapshot A; popraw źródło zamiast ręcznie tworzyć plik wynikowy |
+| Brak zestawu parametrów, wymaganego parametru lub nagłówka tabeli | Uzupełnij tabelę parametrów i sprawdź zgodność nazwy `Parameter Set`; eksportuj razem z nagłówkami |
+| HTTP 404/410 z AzAdvertizer | Adres powstaje automatycznie z typu i ID; sprawdź te pola oraz `Type2` (`Own` dla własnych definicji). Link w TSV jest ignorowany |
+| Ostrzeżenie o timeout, HTTP 429 lub 5xx | Serwis może być chwilowo niedostępny; sprawdź link i ponów później. Samo ostrzeżenie nie blokuje publikacji |
+
+Po poprawce danych ponownie wyeksportuj TSV, zapisz zmiany w repo i uruchom B.
+Błędy blokują nowy artefakt; nie omijaj ich przez wdrożenie starszego.
+
+### Przydatne ustawienia Run pipeline
+
+| Pipeline | Ustawienia |
+| --- | --- |
+| **A — fetch-policies** | `policyVersion`: tag/commit ALZ; domyślnie `main` |
+| **C — update-definitions** | `deployPolicyDefinitions=true`, `targetDefinition=*`, `deployInitiatives=true`, `targetInitiative=*`; `location` dotyczy metadanych wdrożenia |
+| **D — update-assignments** | `deployMode=whatif` (domyślnie) lub `deploy`; `skipValidation=false`; `targetAssignment=*` dla wszystkich lub jedna dokładna nazwa |
+| **E — cleanup** | Domyślnie `targetAssignment=*`, `withDefinitions=false`, `delete=false` |
+| **F — sync-framework** | `frameworkVersion=main`, `dryRun=true` daje podgląd; `false` robi commit i push do ADO |
+
+Dla jednej definicji wyłącz też niepotrzebną fazę w C; oba selektory działają niezależnie.
+Parametr D `deployPolicies` został zastąpiony przez `deployMode` i `skipValidation`.
+Zaktualizuj zapisane wywołania pipeline'u oraz środowiskowy YAML wraz z nowym
+szablonem `.pipelines/.templates/update-assignments-step.yml`.
+Scope przypisania pochodzi z TSV; `MG` + `ROOT` oznacza `deployment.definitionManagementGroupId`.
+Scope ról UAMI pochodzi z wygenerowanego `roleAssignments[].scope`, nie z jednej globalnej MG.
+
+## Cleanup: podgląd, sprawdzenie, usunięcie
+
+Dla pełnego sprzątania uruchom E z `targetAssignment=*`, `withDefinitions=true`, **`delete=false`**.
+Sprawdź listę, potem ponów z **`delete=true`**. Każdy run pobiera aktualną listę od nowa.
+
+- Właściciela określa `managementTag`: przypisania mają `metadata.assignedBy`,
+  definicje/inicjatywy `metadata.managedBy`, UAMI `tags.managedBy`.
+  Cleanup wybiera tylko zasoby z konfiguracyjnym znacznikiem właściciela.
+  Używaj unikalnego `managementTag`, aby nie objąć zasobów zarządzanych przez inne wdrożenie.
+- Kolejność: **przypisania → RBAC tożsamości → UAMI → inicjatywy → definicje**.
+  RBAC jest wyszukiwany po `principalId` tożsamości, nie po tagu.
+- Uwzględniane są oznaczone osierocone UAMI z konfiguracyjnej RG. Oznaczone UAMI używane
+  przez wybrane przypisania mogą znajdować się również poza tą RG.
+- UAMI używane przez pozostałe widoczne przypisania/zasoby i ich RBAC pozostają.
+  Współdzielenie poza hierarchią sprawdź osobno: widoczność ogranicza MG i dostęp bieżącego konta.
+- Można wybrać jedno przypisanie, ale nie razem z `withDefinitions=true`.
+- Błąd zapytania/usuwania przerywa run. Wcześniejsze usunięcia nie są wycofywane.
+- Pozostają zasoby bez znacznika, zasoby robocze utworzone przez remediation, RG i historia wdrożeń.
+  Starsze definicje ALZ bez znacznika wymagają rebuilda i ponownego wdrożenia C przed cleanupem.
+
+Resource Graph ma opóźnienia. Po propagacji ponów samo wyświetlenie listy i sprawdź pozostałości.
+Usuwanie RBAC podlega również warunkowi delegowania UAMI pipeline'u.
 
-Pipeline wykonuje:
+## Aktualizacja frameworka
 
-1. `fetch-policies.sh <policyVersion>` — klonuje Enterprise-Scale i kopiuje JSON do `source/`
-2. Publikuje artefakt **`policy-source`** (`source/`)
+Uruchom F z `dryRun=true` i sprawdź diff przed zezwoleniem na commit/push.
+Zachowuje `source/own/` i środowiskowe pliki YAML pipeline'ów.
+**Nie zakładaj, że całe `configuration/` jest wykluczone:** obecne wykluczenie dotyczy starej
+ścieżki `configurations/`. Sprawdź zmiany konfiguracji/przykładów i przed zastosowaniem
+zadbaj o czyste repo wdrożeniowe oraz kopię zmian.
+F nie aktualizuje istniejących środowiskowych YAML-i; porównaj je ręcznie z nowymi przykładami.
 
-### Krok A2 (alternatywa — lokalnie)
-
-```bash
-./scripts/fetch-policies.sh
-```
-
----
-
-## Proces B — rebuild-configuration
-
-Stosuj gdy zmieniasz **które inicjatywy są aktywne** (dodajesz/usuwasz inicjatywy z `configuration/Azure-Policy.xlsx`) lub aktualizujesz definicje z nowego snapshotu.
-
-Pipeline pobiera artefakt `policy-source` z Procesu A, generuje wszystkie pliki i **publikuje artefakt `policy-generated`** (ARM JSON + config JSON), który jest wejściem dla Procesów C i D.
-
-> `bicep/policyDefinitions/*.json`, `bicep/policySetDefinitions/*.json` i `generated/*.json`
-> są w `.gitignore` — nie trafiają do repozytorium, żyją tylko jako artefakty pipeline'a.
-
-### Krok B1 — Zaktualizuj listę inicjatyw i przypisań w Excelu
-
-Otwórz `configuration/Azure-Policy.xlsx` i zmodyfikuj odpowiednie zakładki (przypisania i/lub parametry).
-
-### Krok B2 — Eksportuj zmiany do TSV
-
-W Excelu dla każdej zmienionej zakładki:
-
-1. Zaznacz całą tabelę (łącznie z nagłówkami) → skopiuj (`Ctrl+C`)
-2. Otwórz odpowiedni plik TSV w VS Code:
-   - przypisania → `configuration/policy-assignments.tsv`
-   - parametry → `configuration/policy-parameters.tsv`
-3. Zaznacz całą zawartość (`Ctrl+A`), wklej (`Ctrl+V`), zapisz
-
-### Krok B3 — Zatwierdź zmiany i uruchom pipeline
-
-```bash
-git add configuration/policy-assignments.tsv configuration/policy-parameters.tsv
-git commit -m "feat: update initiatives — <opis zmian>"
-git push
-```
-
-Uruchom pipeline **`rebuild-configuration`** (ręcznie, trigger: none):
-
-| Parametr | Domyślnie | Opis |
-| --- | --- | --- |
-| `policyVersion` | `main` | Tag lub commit SHA z Azure/Enterprise-Scale (źródło artefaktu A) |
-
-Przy uruchomieniu ADO zapyta o wybór runa Pipeline A — wybierz ten z właściwą wersją
-albo zostaw domyślny (ostatni udany).
-
-Pipeline wykonuje:
-
-1. Pobiera artefakt **`policy-source`** z Pipeline A
-2. `rebuild-configuration.sh` — generuje ARM JSON + config JSON + walidacja
-3. Publikuje artefakt **`policy-generated`** (`bicep/` + `generated/`)
-
-### Krok B3 (alternatywa — lokalnie)
-
-```bash
-# Zakładając że source/ jest już wypełniony przez fetch-policies.sh
-./scripts/rebuild-configuration.sh
-```
-
-> **Następny krok:** Uruchom **Proces C** (`update-definitions`) i/lub **Proces D** (`update-assignments`).
-
----
-
-## Proces C — update-definitions
-
-Stosuj po **Procesie B** — wdraża zaktualizowane definicje polityk i inicjatywy (`bicep/policyDefinitions/*.json`, `bicep/policySetDefinitions/*.json`) do Management Group.
-
-Pipeline pobiera artefakt `policy-generated` z Procesu B (zawiera ARM JSON + config JSON) i uruchamia `update-definitions.sh`.
-
-### Krok C1 — Uruchom pipeline update-definitions
-
-Uruchom pipeline **`update-definitions`** (ręcznie, trigger: none):
-
-| Parametr | Domyślnie | Opis |
-| --- | --- | --- |
-| `location` | `germanywestcentral` | Lokalizacja metadanych wdrożenia |
-| `targetInitiative` | `''` | Opcjonalnie: wdrażaj tylko jedną inicjatywę |
-| `targetDefinition` | `''` | Opcjonalnie: wdrażaj tylko jedną definicję polityki |
-| `deployPolicyDefinitions` | `true` | Wdrażaj etap definicji polityk |
-| `deployInitiatives` | `true` | Wdrażaj etap definicji inicjatyw |
-
-Wymagane zmienne (`configuration/ado-env.yml`):
-
-- `serviceConnectionName` — nazwa Azure DevOps service connection używanej przez `AzureCLI@2` (`azureSubscription`).
-- `devopsManagedPool` — nazwa puli agentów używanej przez pipeline (`pool.name`).
-
-Przy uruchomieniu ADO zapyta o wybór runa Pipeline B — wybierz właściwy lub zostaw domyślny (ostatni udany).
-
-Pipeline wykonuje:
-
-1. Pobiera artefakt **`policy-generated`** z Pipeline B
-2. `update-definitions.sh` — walidacja + pętla `az deployment mg create` dla każdego pliku w `bicep/policyDefinitions/*.json` (definicje używają `metadata.targetManagementGroup`, jeśli istnieje; w przeciwnym razie używany jest fallback `definitionManagementGroupId`)
-3. `update-definitions.sh` — pętla `az deployment mg create` dla każdego pliku w `bicep/policySetDefinitions/*.json`
-
-Przykłady selektywnego uruchomienia z UI pipeline:
-
-- ustaw `targetInitiative=Enforce-Guardrails-VirtualDesktop`, aby wdrożyć tylko jedną inicjatywę
-- ustaw `targetDefinition=Deploy-ANMVnetPeering`, aby wdrożyć tylko jedną definicję polityki
-- ustaw `deployPolicyDefinitions=false`, aby pominąć etap definicji polityk
-- ustaw `deployInitiatives=false`, aby pominąć etap definicji inicjatyw
-
-### Krok C1 (alternatywa — lokalnie)
-
-```bash
-# Zakładając że bicep/ i generated/ są wypełnione przez rebuild-configuration.sh
-./scripts/update-definitions.sh
-
-# Tylko z nadpisaniem lokalizacji:
-./scripts/update-definitions.sh --location germanywestcentral
-
-# Opcjonalnie: nadpisanie management group dla inicjatyw (oraz fallback dla definicji bez metadata.targetManagementGroup):
-./scripts/update-definitions.sh --location germanywestcentral --management-group your-management-group-id
-```
-
----
-
-## Proces D — update-assignments
-
-Stosuj gdy chcesz zaktualizować **przypisania i parametry** — bez zmiany definicji inicjatyw.
-Można uruchamiać niezależnie od Procesów A–C pod warunkiem, że artefakt `policy-generated` z Procesu B jest dostępny (lub pliki są lokalnie wygenerowane).
-
-### Krok D1 — Edytuj plik Excel z przypisaniami
-
-Otwórz `configuration/Azure-Policy.xlsx`.
-
-Tabela zawiera m.in. kolumny pomocnicze (nie przetwarzane przez skrypt):
-
-- **AzAdvertizer Link** — link do podglądu polityki na azadvertizer.net
-- **Version** — wersja definicji z GH, na której oparliśmy przypisanie
-
-Kolumny przetwarzane przez skrypt — opis w [REFERENCE.md → Kolumny TSV](REFERENCE.md#kolumny-w-policy-assignmentstsv).
-
-### Krok D2 — Edytuj parametry (jeśli potrzeba)
-
-Otwórz `configuration/Azure-Policy.xlsx` → zakładka **Parameters** i zaktualizuj wartości parametrów dla odpowiednich zestawów (Parameter Set).
-
-Jeśli przypisanie ma trafić do głównej Management Group, wpisz `ROOT` w kolumnie
-`Assignment Scope` oraz `MG` w `Scope Type`. Generator zamieni ten alias na wartość
-`deployment.definitionManagementGroupId` z pliku `configuration/deployment-config.json`.
-Przykład znajduje się w [opisie formatu TSV](../configuration/TSV-FORMAT.md#assignment-scope-root).
-
-### Krok D3 — Eksportuj zmiany do TSV
-
-W Excelu dla każdej zmienionej zakładki:
-
-1. Zaznacz całą tabelę z danymi (łącznie z nagłówkami)
-2. Skopiuj (`Ctrl+C`)
-3. Otwórz odpowiedni plik TSV w VS Code:
-   - przypisania → `configuration/policy-assignments.tsv`
-   - parametry → `configuration/policy-parameters.tsv`
-4. Zaznacz całą zawartość (`Ctrl+A`) i wklej (`Ctrl+V`)
-5. Zapisz
-
-### Krok D4 — Zatwierdź zmiany i uruchom pipeline
-
-```bash
-git add configuration/policy-assignments.tsv configuration/policy-parameters.tsv
-git commit -m "feat: update policy assignments — <opis zmian>"
-git push
-```
-
-Uruchom pipeline **`update-assignments`** (ręcznie, trigger: none):
-
-| Parametr | Domyślnie | Opis |
-| --- | --- | --- |
-| `location` | `germanywestcentral` | Lokalizacja metadanych wdrożenia |
-| `deployPolicies` | `false` | Czy wdrożyć przypisania do Azure (`false` = tylko what-if) |
-| `targetAssignment` | `''` | Opcjonalnie: przetwarzaj tylko jedną nazwę przypisania |
-
-Wymagane zmienne (`configuration/ado-env.yml`):
-
-- `serviceConnectionName` — nazwa Azure DevOps service connection używanej przez `AzureCLI@2` (`azureSubscription`).
-- `devopsManagedPool` — nazwa puli agentów używanej przez pipeline (`pool.name`).
-
-Uwaga: docelowy scope przypisania zawsze pochodzi z elementu w `generated/assignments.json`
-(`scope.type` + `scope.id`). ID definicji jest rozwiązywane z danych przypisania
-(`policyDefinitionId` jeśli jest, w przeciwnym razie nazwy).
-`definitionManagementGroupId` jest pobierane z `configuration/deployment-config.json`
-(domyślne ustawienia deploymentu), a nie z Library.
-Dla RBAC UAMI efektywny scope nadań ról pochodzi z `generated/assignment-identities.json`
-(`roleAssignments[].scope`), a nie z `definitionManagementGroupId`.
-
-Przy uruchomieniu ADO zapyta o wybór runa Pipeline B — wybierz właściwy lub zostaw domyślny (ostatni udany).
-
-Pipeline wykonuje:
-
-1. Pobiera artefakt **`policy-generated`** z Pipeline B
-2. `update-assignments.sh` — generuje `generated/*.json` + walidacja + `az deployment tenant what-if`
-3. *(opcjonalnie gdy `deployPolicies=true`)* `az deployment tenant create`
-
-> **Tip:** Domyślnie (`deployPolicies=false`) pipeline wykonuje tylko what-if bez wdrożenia.
-> Ustaw `deployPolicies=true` dopiero po weryfikacji wyniku what-if.
-
-### Krok D4 (alternatywa — lokalnie)
-
-```bash
-# Tylko what-if (podgląd zmian)
-./scripts/update-assignments.sh
-
-# Faktyczne wdrożenie
-./scripts/update-assignments.sh --deploy
-
-# Z nadpisaniem parametrów:
-./scripts/update-assignments.sh --deploy --location germanywestcentral --management-group your-management-group-id
-
-# Tylko jedno przypisanie (what-if):
-./scripts/update-assignments.sh --assignment AP2026-04-28_0015
-
-# Tylko jedno przypisanie (wdrożenie) — przydatne przy testowaniu lub wdrażaniu po kolei:
-./scripts/update-assignments.sh --assignment AP2026-04-28_0015 --deploy
-```
-
----
-
-## Proces E — cleanup
-
-Stosuj gdy chcesz wylistować lub usunąć zasoby polityk zarządzane przez to repozytorium (przypisania, UAMI, definicje, inicjatywy).
-
-> **Domyślnie bezpieczny** — bez `delete=true` pipeline tylko wylistowuje zasoby, nie wprowadza żadnych zmian.
-
-### Krok E1 — Uruchom pipeline cleanup
-
-Uruchom pipeline **`cleanup`** (ręcznie, trigger: none):
-
-| Parametr | Domyślnie | Opis |
-| --- | --- | --- |
-| `targetAssignment` | `*` | Nazwa przypisania do przetworzenia (`*` = wszystkie) |
-| `withDefinitions` | `false` | Usuń też definicje polityk i inicjatywy |
-| `delete` | `false` | `false` = tylko lista (dry-run), `true` = usuń zasoby |
-
-Wymagane zmienne (`configuration/ado-env.yml`): `serviceConnectionName`, `devopsManagedPool` (tak samo jak Pipeline C/D).
-
-### Krok E1 (alternatywnie — uruchom lokalnie)
-
-```bash
-# Wylistuj wszystkie zarządzane zasoby (brak zmian)
-./scripts/cleanup.sh
-
-# Wylistuj włącznie z definicjami i inicjatywami
-./scripts/cleanup.sh --with-definitions
-
-# Usuń przypisania i UAMI (najpierw sprawdź dry-run!)
-./scripts/cleanup.sh --delete
-
-# Usuń wszystko włącznie z definicjami
-./scripts/cleanup.sh --delete --with-definitions
-
-# Ogranicz do pojedynczego przypisania
-./scripts/cleanup.sh -a AP202604290022 --delete
-```
-
----
-
-## Proces F — sync-framework
-
-Stosuj gdy w repozytorium GitHub (`ChrisPolewiak/AzurePolicy`) ukazuje się nowa wersja frameworka (pipeline'y, skrypty, moduły Bicep) i chcesz ciągnąć ją do repozytorium ADO bez nadpisywania lokalnej konfiguracji.
-
-> Pipeline synchronizuje **wyłącznie pliki frameworka** — nigdy nie dotyka `source/own/`, `configurations/`, `scripts/deployment-config.json` ani lokalnych eksportów danych w `docs/`.
-
-### Wymaganie wstępne — publiczne repozytorium GitHub
-
-Repozytorium frameworka jest publiczne, więc pipeline pobiera je anonimowo przez
-HTTPS. Nie jest potrzebne GitHub service connection, PAT, klucz SSH ani konfiguracja
-`endpoint`. Nadal wymagane jest połączenie serwisowe Azure DevOps używane przez sam
-pipeline do operacji Azure/ADO.
-
-### Krok F1 — Uruchom pipeline sync-framework
-
-Uruchom pipeline **`sync-framework`** (ręcznie, trigger: none):
-
-| Parametr | Domyślnie | Opis |
-| --- | --- | --- |
-| `frameworkVersion` | `main` | Tag lub branch z GitHuba `ChrisPolewiak/AzurePolicy` |
-| `dryRun` | `true` | `true` = tylko podgląd (bez commitu), `false` = commit i push do ADO |
-
-Pipeline wykonuje:
-
-1. Pobiera (`checkout`) repozytorium ADO (`self`) z `persistCredentials: true`.
-2. Klonuje publiczne repozytorium GitHub anonimowo do katalogu `_framework_tmp`.
-3. Kopiuje pliki z GitHub do głównego katalogu repozytorium ADO przez `rsync`, **pomijając** ścieżki lokalne:
-   - `source/own/` — własne definicje polityk
-   - `configurations/` — lokalna konfiguracja wdrożeń
-   - `scripts/deployment-config.json`
-   - `docs/*.tsv`, `docs/*.csv`, `docs/*.xlsx`, `docs/*.xls`
-4. Jeśli `dryRun=false`: commituje i pushuje zmiany z komunikatem `chore: sync framework <wersja> from GitHub [skip ci]`.
-5. Jeśli `dryRun=true` (domyślnie): wyświetla `git status` i `git diff --stat HEAD` bez commitowania.
-
-> **Wskazówka:** Zawsze uruchamiaj najpierw z `dryRun=true`, żeby sprawdzić co się zmieni przed commitem.
-
----
-
-## Dalsza rozbudowa
-
-Rekomendowany kolejny krok:
-
-- dodać obsługę exemptions przez `generated/exemptions.json` i `bicep/exemptions.bicep`.
-
----
-
-## Licencja i podziękowania
-
-Projekt udostępniony na licencji [MIT](LICENSE).
-
-Definicje i inicjatywy polityk pochodzą z repozytorium
-[Azure/Enterprise-Scale](https://github.com/Azure/Enterprise-Scale) firmy Microsoft,
-również opublikowanego na licencji MIT.
-
-Projekt powstał przy użyciu [Visual Studio Code](https://code.visualstudio.com/)
-oraz [Claude AI](https://www.anthropic.com/claude) firmy Anthropic.
+Formaty danych, opcje CLI i moduły opisuje [dokumentacja techniczna](REFERENCE.pl.md).

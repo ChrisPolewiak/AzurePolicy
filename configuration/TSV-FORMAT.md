@@ -26,6 +26,7 @@ One row per policy assignment. Rows with `Deploy=FALSE` are skipped by default.
 | `Scope Type` | ✓ | `MG` / `managementgroup` for a Management Group, or `SUB` / `SB` / `subscription` for a subscription |
 | `Assignment Name` | ✓ | Human-readable display name for the assignment |
 | `DefinitionType` or `Type` | ✓ | `Initiative` or `Policy` |
+| `Type2` | ✓ | `Custom`, `Own` or `Built-in` — used by rebuild validation to select source/template checks |
 | `Definition Name` | ✓ | Initiative or policy display name |
 | `ID` | ✓ | Definition file stem (without `.json`), built-in policy GUID, or full ARM path |
 | `Parameter Set` | — | Key into `policy-parameters.tsv` (must match exactly) |
@@ -34,7 +35,23 @@ One row per policy assignment. Rows with `Deploy=FALSE` are skipped by default.
 | `Identity RBAC Roles` | — | Comma-separated role names or IDs to assign to the UAMI |
 | `Identity RBAC Scope` | — | Comma-separated ARM scopes for the role assignments (default: assignment scope) |
 
-Any other columns (e.g. `AzAdvertizer Link`, `Version`, `Comment`) are treated as helper columns and ignored.
+Helper columns (e.g. `AzAdvertizer Link`, `Version`, `Comment`) are ignored.
+The link column is not required, even for rebuild validation.
+
+### AzAdvertizer links
+
+The URL follows a fixed pattern based on definition type and ID:
+
+- Policy: `https://www.azadvertizer.net/azpolicyadvertizer/<ID>.html`
+- Initiative: `https://www.azadvertizer.net/azpolicyinitiativesadvertizer/<ID>.html`
+
+For deployable `Custom` and `Built-in` rows, the validator generates the URL from
+`DefinitionType` and `ID` and checks it independently of any link column in TSV.
+`Own` definitions are excluded from this online check because they are not listed on AzAdvertizer.
+If kept for operator convenience, workbook links do not affect validation.
+An available page confirms the reference on AzAdvertizer, not that the definition is deployed in Azure.
+Invalid links and HTTP 404/410 fail validation; temporary network/429/5xx failures
+produce a warning after retries.
 
 ### Assignment scope `ROOT`
 
@@ -77,6 +94,10 @@ One row per parameter key within a parameter set. Multiple sets can coexist in t
 Any other columns (e.g. `Default Value`, `Allowed Values`, `Description`) are ignored.
 
 ### Array values
+
+String parameter values preserve the input letter case: `false`, `False` and `FALSE`
+remain distinct strings. Enter the exact spelling required by the policy's `allowedValues`.
+The generator trims surrounding whitespace but does not normalize string casing.
 
 Three accepted formats:
 

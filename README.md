@@ -6,14 +6,27 @@ Policy definitions and initiatives are sourced from [Azure/Enterprise-Scale](htt
 
 ---
 
-## Documentation
+## Start here
+
+**[Przewodnik operatora (PL)](docs/README.pl.md)** · **[Operator guide (EN)](docs/README.md)**
+
+The normal workflow is:
+
+**Excel → TSV → B: build → C: definitions (if changed) → D: what-if → deploy**
+
+Run **A** when you need a new Microsoft ALZ snapshot. Use **E** for cleanup and **F**
+to update the framework. Cleanup and framework sync start in preview mode.
+
+GitHub contains the reusable framework; environment data and deployment runs belong
+in your Azure DevOps repository. Never publish environment-specific configuration by accident.
+
+## Details when you need them
 
 | Document | Description |
 | --- | --- |
-| [docs/README.md](docs/README.md) | Operator guide — ADO setup, pipelines A–F, step-by-step workflows (EN) |
-| [docs/README.pl.md](docs/README.pl.md) | Przewodnik operatora — konfiguracja ADO, pipeline'y A–F, instrukcje krok po kroku (PL) |
 | [docs/REFERENCE.md](docs/REFERENCE.md) | Technical reference — file formats, scripts, Bicep/ARM structure, configuration (EN) |
 | [docs/REFERENCE.pl.md](docs/REFERENCE.pl.md) | Dokumentacja techniczna — formaty plików, skrypty, Bicep/ARM, konfiguracja (PL) |
+| [configuration/TSV-FORMAT.md](configuration/TSV-FORMAT.md) | Assignment and parameter table columns |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Changelog |
 
 ---

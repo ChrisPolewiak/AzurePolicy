@@ -122,7 +122,68 @@ fi
 # Temporary files for passing JSON objects to az --parameters
 TMP_ASSIGNMENT=$(mktemp /tmp/az-assignment-XXXXXX.json)
 TMP_PARAMETERSET=$(mktemp /tmp/az-parameterset-XXXXXX.json)
-trap 'rm -f "$TMP_ASSIGNMENT" "$TMP_PARAMETERSET"' EXIT
+TMP_ERRORS=$(mktemp /tmp/az-assignment-errors-XXXXXX.jsonl)
+TMP_COMMAND_LOG=$(mktemp /tmp/az-assignment-command-XXXXXX.log)
+trap 'rm -f "$TMP_ASSIGNMENT" "$TMP_PARAMETERSET" "$TMP_ERRORS" "$TMP_COMMAND_LOG"' EXIT
+
+timed_command() {
+  local stage="$1" started=$SECONDS rc=0
+  shift
+  "$@" || rc=$?
+  echo "    TIME [$assignment_name] $stage: $((SECONDS - started))s (exit=$rc)" >&2
+  return "$rc"
+}
+
+record_error() {
+  python3 - "$TMP_ERRORS" "$assignment_name" "$assignment_display_name" "$scope_type/$scope_id" "$1" "$2" <<'PY'
+import json
+import sys
+
+path, name, display, scope, stage, message = sys.argv[1:]
+with open(path, "a", encoding="utf-8") as stream:
+    stream.write(json.dumps([name, display, scope, stage, message]) + "\n")
+PY
+}
+
+report_errors() {
+  python3 - "$TMP_ERRORS" "$ASSIGNMENT_COUNT" "$SCRIPT_DIR" <<'PY'
+import html
+import json
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, sys.argv[3])
+from validate_rebuild import escape_ado
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    errors = [json.loads(line) for line in stream]
+lines = [
+    "# Azure Policy assignment results",
+    "",
+    f"Selected assignments: **{sys.argv[2]}**. Errors: **{len(errors)}**.",
+    "",
+    "| Assignment | Display name | Scope | Stage | Error |",
+    "| --- | --- | --- | --- | --- |",
+]
+for error in errors:
+    cells = [html.escape(cell).replace("|", "&#124;").replace("\r", "").replace("\n", "<br>") for cell in error]
+    lines.append("| " + " | ".join(cells) + " |")
+    if os.environ.get("TF_BUILD", "").lower() == "true":
+        message = f"{error[0]} ({error[2]}) [{error[3]}]: {error[4]}"
+        print(f"##vso[task.logissue type=error;]{escape_ado(message)}")
+if not errors:
+    lines.extend(["", "No assignment errors."])
+print("\n".join(lines))
+if os.environ.get("TF_BUILD", "").lower() == "true":
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".md", prefix="azurepolicy-assignments-",
+        dir=os.environ.get("AGENT_TEMPDIRECTORY"), delete=False,
+    ) as summary:
+        summary.write("\n".join(lines) + "\n")
+    print(f"##vso[task.uploadsummary]{summary.name}")
+PY
+}
 
 get_identity_config_entry() {
   local assignment_name="$1"
@@ -371,6 +432,7 @@ echo "==> Processing $ASSIGNMENT_COUNT assignments one by one..."
 ASSIGNMENT_INDEX=0
 SUCCESS_COUNT=0
 FAIL_COUNT=0
+PROCESS_STARTED=$SECONDS
 
 while IFS= read -r assignment_json; do
   ASSIGNMENT_INDEX=$((ASSIGNMENT_INDEX + 1))
@@ -411,16 +473,20 @@ while IFS= read -r assignment_json; do
     ASSIGNMENT_SCOPE_PATH="/subscriptions/$scope_id"
   else
     echo "    ⚠  Unknown scope type '$scope_type' — skipping."
+    record_error scope "Unknown scope type '$scope_type'"
     FAIL_COUNT=$((FAIL_COUNT + 1))
     continue
   fi
 
   if [[ "$identity_config_entry" != "null" ]]; then
-    if ! identity_config_entry=$(ensure_user_assigned_identity_entry "$identity_config_entry" "$assignment_name" "$scope_type" "$scope_id" "$DEPLOY"); then
+    if ! identity_config_entry=$(timed_command UAMI ensure_user_assigned_identity_entry "$identity_config_entry" "$assignment_name" "$scope_type" "$scope_id" "$DEPLOY" 2>"$TMP_COMMAND_LOG"); then
+      cat "$TMP_COMMAND_LOG" >&2
+      record_error UAMI "Failed to resolve/create user-assigned identity configuration: $(cat "$TMP_COMMAND_LOG")"
       echo "    ✗ Failed to resolve/create user-assigned identity configuration"
       FAIL_COUNT=$((FAIL_COUNT + 1))
       continue
     fi
+    cat "$TMP_COMMAND_LOG" >&2
     assignment_json=$(inject_identity_into_assignment "$assignment_json" "$identity_config_entry")
     echo "$assignment_json" > "$TMP_ASSIGNMENT"
     role_assignments_json=$(get_role_assignments_json "$identity_config_entry")
@@ -445,20 +511,22 @@ while IFS= read -r assignment_json; do
   )
 
   if [[ "$DEPLOY" == "true" ]]; then
-    if "${AZ_SCOPE_CMD[@]}" create "${COMMON_ARGS[@]}" --output none; then
+    if timed_command deployment "${AZ_SCOPE_CMD[@]}" create "${COMMON_ARGS[@]}" --output none 2>&1 | tee "$TMP_COMMAND_LOG"; then
       echo "    ✓ Deployed"
 
       if [[ "$role_assignments_json" != "[]" ]]; then
         principal_id=""
-        if ! principal_id=$(resolve_assignment_principal_id "$assignment_name" "$ASSIGNMENT_SCOPE_PATH" 3 2); then
-          # For user-assigned identity assignments, policy assignment principalId may stay empty.
-          # Fallback: resolve principalId directly from the configured UAMI resource.
-          uami_resource_id=$(echo "$identity_config_entry" | python3 -c "import json,sys; e=json.load(sys.stdin); ids=((e.get('identity') or {}).get('userAssignedIdentityResourceIds') or []); print(ids[0] if ids else '')")
-          if [[ -n "$uami_resource_id" ]]; then
-            echo "    ℹ PrincipalId fallback to UAMI"
-            principal_id=$(az identity show --ids "$uami_resource_id" --query "principalId" -o tsv 2>/dev/null || true)
+        uami_resource_id=$(echo "$identity_config_entry" | python3 -c "import json,sys; e=json.load(sys.stdin); ids=((e.get('identity') or {}).get('userAssignedIdentityResourceIds') or []); print(ids[0] if ids else '')")
+        if [[ -n "$uami_resource_id" ]]; then
+          if ! principal_id=$(timed_command principalId az identity show --ids "$uami_resource_id" --query "principalId" -o tsv 2>"$TMP_COMMAND_LOG"); then
+            principal_id=""
+          fi
+        else
+          if ! principal_id=$(timed_command principalId resolve_assignment_principal_id "$assignment_name" "$ASSIGNMENT_SCOPE_PATH" 3 2 2>"$TMP_COMMAND_LOG"); then
+            principal_id=""
           fi
         fi
+        cat "$TMP_COMMAND_LOG" >&2
 
         if [[ -z "$principal_id" || "$principal_id" == "None" ]]; then
           echo "    ✗ Missing managed identity principalId for RBAC setup"
@@ -467,6 +535,7 @@ while IFS= read -r assignment_json; do
             echo "      az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal --role \"$role_value\" --scope \"$role_scope\" --output json"
           done < <(iter_role_bindings "$role_assignments_json" "$ASSIGNMENT_SCOPE_PATH")
           FAIL_COUNT=$((FAIL_COUNT + 1))
+          record_error RBAC "Missing managed identity principalId for RBAC setup: $(cat "$TMP_COMMAND_LOG")"
           continue
         fi
 
@@ -481,9 +550,11 @@ while IFS= read -r assignment_json; do
           )
 
           set +e
+          role_started=$SECONDS
           role_output=$("${role_cmd[@]}" 2>&1)
           role_rc=$?
           set -e
+          echo "    TIME [$assignment_name] RBAC $role_value @ $role_scope: $((SECONDS - role_started))s (exit=$role_rc)"
 
           if [[ "$role_rc" -eq 0 ]]; then
             echo "    ✓ RBAC ensured: $role_value"
@@ -492,6 +563,7 @@ while IFS= read -r assignment_json; do
           else
             echo "    ✗ RBAC failed: $role_value @ $role_scope"
             echo "      $role_output"
+            record_error RBAC "$role_value @ $role_scope: $role_output"
             FAIL_COUNT=$((FAIL_COUNT + 1))
           fi
         done < <(iter_role_bindings "$role_assignments_json" "$ASSIGNMENT_SCOPE_PATH")
@@ -500,10 +572,11 @@ while IFS= read -r assignment_json; do
       SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
       echo "    ✗ FAILED"
+      record_error deployment "$(cat "$TMP_COMMAND_LOG")"
       FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
   else
-    if "${AZ_SCOPE_CMD[@]}" what-if "${COMMON_ARGS[@]}"; then
+    if timed_command what-if "${AZ_SCOPE_CMD[@]}" what-if "${COMMON_ARGS[@]}" 2>&1 | tee "$TMP_COMMAND_LOG"; then
       if [[ "$role_assignments_json" != "[]" ]]; then
         echo "    ℹ Role assignments to ensure after deploy:"
         while IFS=$'\t' read -r role_value role_scope; do
@@ -513,6 +586,7 @@ while IFS= read -r assignment_json; do
       SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
       echo "    ✗ What-if FAILED"
+      record_error what-if "$(cat "$TMP_COMMAND_LOG")"
       FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
   fi
@@ -520,6 +594,8 @@ while IFS= read -r assignment_json; do
 done < <(python3 -c "import json,sys; a=json.load(open('generated/assignments.json')); t='''$TARGET_ASSIGNMENT'''.strip(); [print(json.dumps(x)) for x in a if not t or x.get('name')==t]")
 
 echo ""
+echo "TIME total assignment processing: $((SECONDS - PROCESS_STARTED))s"
+report_errors
 if [[ "$DEPLOY" == "true" ]]; then
   echo "==> Done: $SUCCESS_COUNT deployed, $FAIL_COUNT failed (of $ASSIGNMENT_COUNT total)."
   if [[ "$FAIL_COUNT" -gt 0 ]]; then
@@ -530,5 +606,9 @@ if [[ "$DEPLOY" == "true" ]]; then
   fi
 else
   echo "==> What-if complete: $SUCCESS_COUNT OK, $FAIL_COUNT failed (of $ASSIGNMENT_COUNT total)."
+  if [[ "$FAIL_COUNT" -gt 0 ]]; then
+    echo "⚠  Some what-if operations failed. Review the error summary."
+    exit 1
+  fi
   echo "ℹ  Run with --deploy to apply changes."
 fi

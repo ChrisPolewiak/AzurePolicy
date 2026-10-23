@@ -1,291 +1,149 @@
 #!/usr/bin/env bash
-# cleanup.sh
-# Lists or deletes Azure Policy assignments, UAMIs, and optionally policy definitions /
-# initiatives managed by this repo.  Queries Azure directly — does not depend on local
-# config/*.json files.
-#
-# Default behaviour (no --delete): list only — no changes are made.
-# Pass --delete to actually remove the listed resources.
-# Requires active Azure CLI login (az login) or service principal context.
-#
-# Usage:
-#   scripts/cleanup.sh [--delete] [--with-definitions] [-a <name>] [-h]
-#
-# Options:
-#   (no flags)                   List all managed resources found in Azure — no changes made
-#       --delete                 Delete the listed resources
-#       --with-definitions       Also include custom policy definitions and initiatives
-#   -a, --assignment <name>      Scope to a single assignment (ARM resource name / InternalID)
-#   -h, --help                   Show this help and exit.
-#
-# Examples:
-#   scripts/cleanup.sh
-#   scripts/cleanup.sh --with-definitions
-#   scripts/cleanup.sh --delete
-#   scripts/cleanup.sh --delete --with-definitions
-#   scripts/cleanup.sh -a AP202604290022
-#   scripts/cleanup.sh -a AP202604290022 --delete
-
-set -euo pipefail
+# List managed policy resources by default; --delete enables deletion.
+# Usage: scripts/cleanup.sh [--delete] [--with-definitions] [-a <assignment>]
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-usage() {
-  sed -n '1,/^set -euo/{ /^#[^!]/!d; s/^# \?//; p; }' "${BASH_SOURCE[0]}"
-  exit 0
-}
-
-TARGET_ASSIGNMENT=""
-WITH_DEFINITIONS=false
-DELETE=false
-
+delete=false
+with_definitions=false
+assignment=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -a|--assignment)    TARGET_ASSIGNMENT="$2"; shift 2 ;;
-    --with-definitions) WITH_DEFINITIONS=true; shift ;;
-    --delete)           DELETE=true; shift ;;
-    -h|--help)          usage ;;
-    *) echo "Unknown argument: $1"; exit 1 ;;
+    --delete) delete=true; shift ;;
+    --with-definitions) with_definitions=true; shift ;;
+    -a|--assignment)
+      [[ $# -gt 1 && -n "$2" ]] || { echo "ERROR: assignment name required" >&2; exit 1; }
+      assignment="$2"; shift 2 ;;
+    -h|--help) head -n 3 "$0"; exit 0 ;;
+    *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
   esac
 done
-
-cd "$ROOT_DIR"
-
-CONFIG_FILE="$ROOT_DIR/configuration/deployment-config.json"
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "ERROR: deployment-config.json not found at $CONFIG_FILE"
+if [[ -n "$assignment" && "$with_definitions" == true ]]; then
+  echo "ERROR: selective cleanup cannot delete shared definitions; omit --with-definitions" >&2
   exit 1
 fi
-MANAGEMENT_GROUP="$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c['deployment']['definitionManagementGroupId'])")"
-MANAGEMENT_TAG="$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('managementTag', 'policy-by-code'))")"
-DEFAULT_IDENTITY_SUBSCRIPTION="$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('identityDefaults', {}).get('subscriptionId', ''))")"
-DEFAULT_IDENTITY_RESOURCE_GROUP="$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('identityDefaults', {}).get('resourceGroup', ''))")"
+for tool in az jq; do
+  command -v "$tool" >/dev/null || { echo "ERROR: required command missing: $tool" >&2; exit 1; }
+done
+config="$ROOT_DIR/configuration/deployment-config.json"
+mg="$(jq -er '.deployment.definitionManagementGroupId | select(length > 0)' "$config")"
+tag="$(jq -er '.managementTag | select(length > 0)' "$config")"
+sub="$(jq -er '.identityDefaults.subscriptionId | select(length > 0)' "$config")"
+rg="$(jq -er '.identityDefaults.resourceGroup | select(length > 0)' "$config")"
+[[ "$mg$tag$sub$rg" != *"<"* ]] || { echo "ERROR: configure deployment-config.json first" >&2; exit 1; }
 
-if ! $DELETE; then
-  echo "*** LIST MODE — pass --delete to remove resources ***"
-  echo ""
-fi
-
-echo "Mode:             $([ -n "$TARGET_ASSIGNMENT" ] && echo "selective (assignment: $TARGET_ASSIGNMENT)" || echo "full")"
-echo "With definitions: $WITH_DEFINITIONS"
-echo "Management Group: $MANAGEMENT_GROUP"
-echo "Management Tag:   $MANAGEMENT_TAG"
-echo ""
-
-# Temp file for JSON exchange between az CLI and Python; cleaned up on exit.
-TMPFILE=$(mktemp /tmp/cleanup-XXXXXX.json)
-trap "rm -f $TMPFILE" EXIT
-
-# ---------------------------------------------------------------------------
-# Step 1: Policy Assignments — queried via Azure Resource Graph
-# ---------------------------------------------------------------------------
-echo "==> Policy assignments (assignedBy='$MANAGEMENT_TAG')..."
-
-KQL="PolicyResources
-  | where type == 'microsoft.authorization/policyassignments'
-  | where properties.metadata.assignedBy == '${MANAGEMENT_TAG}'"
-
-if [[ -n "$TARGET_ASSIGNMENT" ]]; then
-  KQL="${KQL} | where name == '${TARGET_ASSIGNMENT}'"
-fi
-
-KQL="${KQL} | project name, id, displayName=properties.displayName, uamis=identity.userAssignedIdentities"
-
-az graph query -q "$KQL" --management-groups "$MANAGEMENT_GROUP" --query "data" -o json 2>/dev/null > "$TMPFILE" || echo "[]" > "$TMPFILE"
-
-# List / delete assignments; print UAMI resource IDs (for step 2 selective mode) to stdout.
-UAMI_IDS=$(python3 - "$DELETE" "$TMPFILE" <<'PY'
-import json, sys, subprocess
-
-do_delete = sys.argv[1] == "true"
-assignments = json.load(open(sys.argv[2]))
-
-if not assignments:
-    print("  (none found in Azure)", file=sys.stderr)
-    sys.exit(0)
-
-uami_ids = set()
-
-for a in assignments:
-    rid   = a["id"]
-    scope = rid[:rid.lower().index("/providers/microsoft.authorization/policyassignments/")]
-    print(f"  {a['name']}  ({a.get('displayName', '') or ''})  scope: {scope}", file=sys.stderr)
-    if do_delete:
-        r = subprocess.run(
-            ["az", "policy", "assignment", "delete", "--name", a["name"], "--scope", scope],
-            capture_output=True, text=True,
-        )
-        if r.returncode == 0:
-            print(f"    DELETED", file=sys.stderr)
-        else:
-            print(f"    WARNING: {r.stderr.strip() or 'delete failed'}", file=sys.stderr)
-    else:
-        print(f"    (list only)", file=sys.stderr)
-    for uami_id in (a.get("uamis") or {}).keys():
-        uami_ids.add(uami_id)
-
-for uid in sorted(uami_ids):
-    print(uid)
-PY
-)
-echo ""
-
-# ---------------------------------------------------------------------------
-# Step 2: UAMIs
-# ---------------------------------------------------------------------------
-echo "==> UAMIs (managedBy='$MANAGEMENT_TAG')..."
-
-if [[ -n "$DEFAULT_IDENTITY_RESOURCE_GROUP" ]]; then
-
-  if [[ -n "$UAMI_IDS" ]]; then
-    # Selective mode: use UAMIs referenced by the assignment(s) found above.
-    while IFS= read -r uami_id; do
-      [[ -z "$uami_id" ]] && continue
-      actual_tag=$(az identity show --ids "$uami_id" --query "tags.managedBy" -o tsv 2>/dev/null || true)
-      uami_name=$(az identity show --ids "$uami_id" --query "name" -o tsv 2>/dev/null || echo "$uami_id")
-      if [[ "$actual_tag" != "$MANAGEMENT_TAG" ]]; then
-        echo "  SKIP — $uami_name  (managedBy='${actual_tag:-<unset>}', expected '$MANAGEMENT_TAG')"
-        continue
-      fi
-      echo "  $uami_name"
-      if $DELETE; then
-        az identity delete --ids "$uami_id" \
-          || echo "    (not found or already deleted, skipping)"
-      fi
-    done <<< "$UAMI_IDS"
-
-  elif [[ -n "$TARGET_ASSIGNMENT" ]]; then
-    # Selective mode but the assignment has no UAMI — do not fall through to full scan.
-    echo "  (no UAMI referenced by assignment '$TARGET_ASSIGNMENT')"
-
-  else
-    # Full mode: list all UAMIs tagged managedBy == MANAGEMENT_TAG in the configured RG.
-    az identity list \
-      --subscription "$DEFAULT_IDENTITY_SUBSCRIPTION" \
-      --resource-group "$DEFAULT_IDENTITY_RESOURCE_GROUP" \
-      --query "[?tags.managedBy=='${MANAGEMENT_TAG}']" \
-      -o json 2>/dev/null > "$TMPFILE" || echo "[]" > "$TMPFILE"
-
-    python3 - "$DELETE" "$DEFAULT_IDENTITY_SUBSCRIPTION" "$DEFAULT_IDENTITY_RESOURCE_GROUP" "$TMPFILE" <<'PY'
-import json, sys, subprocess
-
-do_delete = sys.argv[1] == "true"
-sub       = sys.argv[2]
-rg        = sys.argv[3]
-uamis     = json.load(open(sys.argv[4]))
-
-if not uamis:
-    print("  (none found)")
-    sys.exit(0)
-
-for u in uamis:
-    print(f"  {u['name']}  (rg: {rg})")
-    if do_delete:
-        r = subprocess.run(
-            ["az", "identity", "delete",
-             "--name", u["name"], "--resource-group", rg, "--subscription", sub],
-            capture_output=True, text=True,
-        )
-        if r.returncode == 0:
-            print(f"    DELETED")
-        else:
-            print(f"    WARNING: {r.stderr.strip() or 'delete failed'}")
-    else:
-        print(f"    (list only)")
-PY
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+issue() {
+  echo "ERROR: $*" >&2
+  if [[ "${TF_BUILD:-}" == True || "${TF_BUILD:-}" == true ]]; then
+    echo "##vso[task.logissue type=error]Cleanup failed; review task log."
   fi
+}
+trap 'issue "Cleanup stopped; changes may be partial if deletion started."' ERR
 
-else
-  echo "  (identityDefaults.resourceGroup not configured — skipping)"
+# Same paginated ARM Resource Graph pattern as AMBA cleanup.
+graph() {
+  local query="$1" output="$2" token="" body next
+  echo '[]' > "$output"
+  while :; do
+    body="$(jq -nc --arg q "$query" --arg mg "$mg" --arg token "$token" \
+      '{query:$q,managementGroups:[$mg],options:({"$top":1000,resultFormat:"objectArray"} +
+      (if $token == "" then {} else {"$skipToken":$token} end))}')"
+    az rest --method post --url \
+      "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2021-03-01" \
+      --body "$body" -o json > "$tmp/response.json"
+    jq -e '.data | type == "array"' "$tmp/response.json" >/dev/null
+    jq -s '.[0] + .[1].data' "$output" "$tmp/response.json" > "$tmp/page.json"
+    mv "$tmp/page.json" "$output"
+    next="$(jq -r '.["$skipToken"] // empty' "$tmp/response.json")"
+    if [[ -z "$next" ]]; then
+      [[ "$(jq -r '.resultTruncated // false' "$tmp/response.json")" != true ]] ||
+        { issue "Truncated inventory without continuation token"; return 1; }
+      break
+    fi
+    [[ "$next" != "$token" ]] || { issue "Repeated inventory continuation token"; return 1; }
+    token="$next"
+  done
+}
+
+echo "Cleanup: MG=$mg; marker=$tag; delete=$delete; definitions=$with_definitions"
+echo "Only marked resources are eligible. Older unmarked ALZ copies require separate review."
+echo "Run without --delete first. Resource Graph visibility is limited to the current account."
+# Complete inventory before the first delete; failures must never become empty lists.
+graph "PolicyResources | where type =~ 'microsoft.authorization/policyassignments' | project id, name, properties, identity" "$tmp/all-assignments.json"
+jq --arg tag "$tag" --arg name "$assignment" \
+  '[.[] | select(.properties.metadata.assignedBy == $tag) |
+  select($name == "" or .name == $name)]' "$tmp/all-assignments.json" > "$tmp/assignments.json"
+if [[ -n "$assignment" && "$(jq length "$tmp/assignments.json")" == 0 ]]; then
+  issue "No managed assignment named '$assignment'; nothing deleted"
+  exit 1
 fi
-echo ""
-
-# ---------------------------------------------------------------------------
-# Step 3: Policy definitions and initiatives (only with --with-definitions)
-# ---------------------------------------------------------------------------
-if $WITH_DEFINITIONS; then
-
-  echo "==> Policy definitions (managedBy='$MANAGEMENT_TAG') across MG hierarchy '$MANAGEMENT_GROUP'..."
-  KQL_DEF="PolicyResources
-    | where type == 'microsoft.authorization/policydefinitions'
-    | where properties.metadata.managedBy == '${MANAGEMENT_TAG}'
-    | project name, id, displayName=properties.displayName"
-  az graph query -q "$KQL_DEF" --management-groups "$MANAGEMENT_GROUP" --query "data" -o json 2>/dev/null > "$TMPFILE" || echo "[]" > "$TMPFILE"
-
-  python3 - "$DELETE" "$TMPFILE" <<'PY'
-import json, sys, subprocess
-
-do_delete = sys.argv[1] == "true"
-defs      = json.load(open(sys.argv[2]))
-
-if not defs:
-    print("  (none found)")
-    sys.exit(0)
-
-for d in defs:
-    name = d["name"]
-    disp = d.get("displayName") or ""
-    # Extract MG name from resource ID:
-    # /providers/Microsoft.Management/managementGroups/{mg}/providers/...
-    rid  = d.get("id", "")
-    parts = rid.split("/")
-    mg = parts[4] if len(parts) > 4 else ""
-    print(f"  {name}  ({disp})  [MG: {mg}]")
-    if do_delete:
-        r = subprocess.run(
-            ["az", "policy", "definition", "delete", "--name", name, "--management-group", mg],
-            capture_output=True, text=True,
-        )
-        if r.returncode == 0:
-            print(f"    DELETED")
-        else:
-            print(f"    WARNING: {r.stderr.strip() or 'delete failed'}")
-    else:
-        print(f"    (list only)")
-PY
-  echo ""
-
-  # Initiatives — only in full mode (an initiative is shared across assignments).
-  if [[ -z "$TARGET_ASSIGNMENT" ]]; then
-    echo "==> Initiatives (managedBy='$MANAGEMENT_TAG') across MG hierarchy '$MANAGEMENT_GROUP'..."
-    KQL_INIT="PolicyResources
-      | where type == 'microsoft.authorization/policysetdefinitions'
-      | where properties.metadata.managedBy == '${MANAGEMENT_TAG}'
-      | project name, id, displayName=properties.displayName"
-    az graph query -q "$KQL_INIT" --management-groups "$MANAGEMENT_GROUP" --query "data" -o json 2>/dev/null > "$TMPFILE" || echo "[]" > "$TMPFILE"
-
-    python3 - "$DELETE" "$TMPFILE" <<'PY'
-import json, sys, subprocess
-
-do_delete = sys.argv[1] == "true"
-inits     = json.load(open(sys.argv[2]))
-
-if not inits:
-    print("  (none found)")
-    sys.exit(0)
-
-for i in inits:
-    name = i["name"]
-    disp = i.get("displayName") or ""
-    rid  = i.get("id", "")
-    parts = rid.split("/")
-    mg = parts[4] if len(parts) > 4 else ""
-    print(f"  {name}  ({disp})  [MG: {mg}]")
-    if do_delete:
-        r = subprocess.run(
-            ["az", "policy", "set-definition", "delete", "--name", name, "--management-group", mg],
-            capture_output=True, text=True,
-        )
-        if r.returncode == 0:
-            print(f"    DELETED")
-        else:
-            print(f"    WARNING: {r.stderr.strip() or 'delete failed'}")
-    else:
-        print(f"    (list only)")
-PY
-    echo ""
-  fi
+graph "Resources | where type =~ 'microsoft.managedidentity/userassignedidentities' | project id, name, subscriptionId, resourceGroup, tags, properties" "$tmp/all-identities.json"
+graph "Resources | where isnotempty(identity.userAssignedIdentities) | project id, identity" "$tmp/references.json"
+jq -n --slurpfile selected "$tmp/assignments.json" --slurpfile all "$tmp/all-assignments.json" \
+  --slurpfile resources "$tmp/references.json" '
+  ($selected[0] | map(.id | ascii_downcase)) as $ids |
+  [($all[0][] | select((.id | ascii_downcase) as $id | $ids | index($id) | not)),
+   $resources[0][]] |
+  [ .[] | (.identity.userAssignedIdentities // {} | keys[]) | ascii_downcase] | unique' > "$tmp/protected.json"
+jq --arg tag "$tag" --arg sub "$sub" --arg rg "$rg" --arg name "$assignment" \
+  --slurpfile selected "$tmp/assignments.json" --slurpfile protected "$tmp/protected.json" '
+  ([$selected[0][] | (.identity.userAssignedIdentities // {} | keys[]) | ascii_downcase]) as $refs |
+  [.[] | select(.tags.managedBy == $tag) |
+   (.id | ascii_downcase) as $id |
+   select(($refs | index($id)) != null or
+     ($name == "" and (.subscriptionId | ascii_downcase) == ($sub | ascii_downcase) and
+       (.resourceGroup | ascii_downcase) == ($rg | ascii_downcase))) |
+   select(($protected[0] | index($id)) == null)]' "$tmp/all-identities.json" > "$tmp/identities.json"
+jq -e 'all(.[]; (.properties.principalId // "") != "")' "$tmp/identities.json" >/dev/null
+jq -n --slurpfile identities "$tmp/identities.json" --slurpfile assignments "$tmp/assignments.json" \
+  '[$identities[0][].properties.principalId, $assignments[0][].identity.principalId |
+  select(. != null and . != "") | ascii_downcase] | unique' > "$tmp/principals.json"
+graph "AuthorizationResources | where type =~ 'microsoft.authorization/roleassignments' | project id, properties" "$tmp/all-roles.json"
+jq --slurpfile principals "$tmp/principals.json" \
+  '[.[] | (.properties.principalId // "" | ascii_downcase) as $id |
+  select(($principals[0] | index($id)) != null)]' "$tmp/all-roles.json" > "$tmp/roles.json"
+echo '[]' > "$tmp/initiatives.json"
+echo '[]' > "$tmp/definitions.json"
+if $with_definitions; then
+  graph "PolicyResources | where type =~ 'microsoft.authorization/policysetdefinitions' | project id, properties" "$tmp/sets.json"
+  graph "PolicyResources | where type =~ 'microsoft.authorization/policydefinitions' | project id, properties" "$tmp/defs.json"
+  jq --arg tag "$tag" '[.[] | select(.properties.metadata.managedBy == $tag)]' "$tmp/sets.json" > "$tmp/initiatives.json"
+  jq --arg tag "$tag" '[.[] | select(.properties.metadata.managedBy == $tag)]' "$tmp/defs.json" > "$tmp/definitions.json"
 fi
 
-echo "Done."
+remove() {
+  local collection="$1" api="$2" id current expected actual
+  echo "==> $collection: $(jq length "$tmp/$collection.json")"
+  while IFS= read -r id; do
+    echo "  $id"
+    $delete || continue
+    current="$(az rest --method get --url "https://management.azure.com${id}?api-version=$api" -o json)"
+    case "$collection" in
+      assignments) actual="$(jq -r '.properties.metadata.assignedBy // ""' <<< "$current")"; expected="$tag" ;;
+      definitions|initiatives) actual="$(jq -r '.properties.metadata.managedBy // ""' <<< "$current")"; expected="$tag" ;;
+      identities)
+        [[ "$(jq -r '.tags.managedBy // ""' <<< "$current")" == "$tag" ]] ||
+          { issue "Identity marker changed: $id"; return 1; }
+        actual="$(jq -r '.properties.principalId | ascii_downcase' <<< "$current")"
+        expected="$(jq -r --arg id "$id" '.[] | select(.id == $id) | .properties.principalId | ascii_downcase' "$tmp/$collection.json")" ;;
+      roles)
+        actual="$(jq -r '.properties.principalId | ascii_downcase' <<< "$current")"
+        expected="$(jq -r --arg id "$id" '.[] | select(.id == $id) | .properties.principalId | ascii_downcase' "$tmp/$collection.json")" ;;
+    esac
+    [[ -n "$expected" && "$actual" == "$expected" ]] ||
+      { issue "Ownership changed: $id"; return 1; }
+    az rest --method delete --url "https://management.azure.com${id}?api-version=$api" -o none
+    echo "  DELETED"
+  done < <(jq -r '.[].id' "$tmp/$collection.json")
+}
+
+remove assignments 2024-04-01
+remove roles 2022-04-01
+remove identities 2023-01-31
+remove initiatives 2023-04-01
+remove definitions 2023-04-01
+echo "Done. Unmarked resources are retained. Shared UAMIs are retained."
+echo "Resource Graph is eventually consistent; repeat list-only after propagation to verify."

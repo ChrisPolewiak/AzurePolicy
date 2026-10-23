@@ -65,10 +65,12 @@ steps:
     cp generated/parameters.json         "$(Build.ArtifactStagingDirectory)/generated/"
     cp generated/assignment-identities.json "$(Build.ArtifactStagingDirectory)/generated/"
   displayName: 'Stage generated files for artifact'
+  condition: succeeded()
 
 - publish: $(Build.ArtifactStagingDirectory)
   artifact: policy-generated
   displayName: 'Publish artifact: policy-generated'
+  condition: succeeded()
 
 - bash: |
     set -euo pipefail

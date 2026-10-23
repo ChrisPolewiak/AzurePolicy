@@ -1,63 +1,37 @@
-# .pipelines/
+# Azure DevOps pipelines
 
-Azure DevOps pipeline definitions. All pipelines are triggered manually (`trigger: none`).
+For everyday operation, read the [operator guide](../docs/README.md)
+([Polski](../docs/README.pl.md)). All six pipelines are started manually.
 
-| File | Stage | Consumes | Produces |
-| --- | --- | --- | --- |
-| `fetch-policies.yml` | A | GitHub Azure/Enterprise-Scale | artifact: `policy-source` |
-| `rebuild-configuration.example.yml` ¹ | B | artifact: `policy-source` | artifact: `policy-generated` |
-| `update-definitions.example.yml` ¹ | C | artifact: `policy-generated` | deploys policy definitions + initiatives to MG |
-| `update-assignments.example.yml` ¹ | D | artifact: `policy-generated` | what-if or deploys policy assignments to tenant |
-| `cleanup.yml` | E | (none) | lists or deletes managed policy resources in Azure |
-| `sync-framework.example.yml` ¹ | — | GitHub ChrisPolewiak/AzurePolicy | commits updated framework files to ADO repo |
+## Set up in the deployment repository
 
-¹ Gitignored — copy from the `.example.yml` template at deployment time. See Initial ADO setup in [docs/README.md](../docs/README.md).
+1. Copy each `*.example.yml` here to the corresponding `*.yml`.
+   Examples are shared framework files; environment-specific copies are gitignored.
+2. Copy [ado-env.example.yml](../configuration/ado-env.example.yml) to
+   `configuration/ado-env.yml`. Set the agent pool and Azure service connection.
+3. Register the pipelines in ADO using the names below. Alternatively, use
+   [create-ado-pipelines.sh](../scripts/create-ado-pipelines.sh); inspect its `--help`
+   and run `--dry-run` before creating anything.
+4. Match B's `source:` to A's registered name, and C/D's `source:` to B's.
+   Defaults have no environment suffix. If using `--name-suffix`, update those references too.
 
-Pipelines C and D are independent — both consume `policy-generated` from Pipeline B
-and can be run separately without re-running each other.
+| ADO name | Template | Input → result |
+| --- | --- | --- |
+| `A-fetch-policies` | [fetch-policies.example.yml](fetch-policies.example.yml) | Microsoft ALZ → `policy-source` |
+| `B-rebuild-configuration` | [rebuild-configuration.example.yml](rebuild-configuration.example.yml) | `policy-source` + local sources/TSV → validated `policy-generated` |
+| `C-update-definitions` | [update-definitions.example.yml](update-definitions.example.yml) | `policy-generated` + checkout TSV → definitions/initiatives in Azure |
+| `D-update-assignments` | [update-assignments.example.yml](update-assignments.example.yml) | `policy-generated` → `deployMode=whatif` (default) or `deploy`; `skipValidation` skips preview only in deploy mode |
+| `E-cleanup` | [cleanup.example.yml](cleanup.example.yml) | Live inventory → list; deletion only with `delete=true` |
+| `F-sync-framework` | [sync-framework.example.yml](sync-framework.example.yml) | Public GitHub → diff; commit/push only with `dryRun=false` |
 
-Artifact flow (key behavior):
+## Before starting a run
 
-- Stage A (`fetch-policies.yml`) publishes artifact `policy-source` (snapshot from `source/`).
-- Stage B (`rebuild-configuration.yml`) downloads `policy-source`, generates files, and publishes artifact `policy-generated` (selected files from `bicep/` and `generated/`).
-- Stage C (`update-definitions.yml`) downloads `policy-generated` and deploys; it does not publish a new artifact.
-- Stage D (`update-assignments.yml`) downloads `policy-generated` and deploys/what-if; it does not publish a new artifact.
-
-Each pipeline includes a final cleanup step (`condition: always()`) that removes restored/generated temporary files from the job workspace after execution.
-
-Required ADO variables (`configuration/ado-env.yml`):
-
-- `serviceConnectionName` - service connection used by AzureCLI tasks (pipelines C and D).
-- `devopsManagedPool` - managed agent pool name used by all pipelines.
-
-Copy `configuration/ado-env.example.yml` to `configuration/ado-env.yml` and fill in your values.
-`ado-env.yml` is in `.gitignore` and stays local to your ADO repository.
-
-Key manual-run parameters:
-
-- `update-definitions.yml`: `targetInitiative` (default `*`), `targetDefinition` (default `*`), `deployPolicyDefinitions`, `deployInitiatives`
-- `update-assignments.yml`: `deployPolicies`, `targetAssignment` (default `*`)
-- `cleanup.yml`: `targetAssignment` (default `*`), `withDefinitions`, `delete` (default `false` = dry-run)
-- `sync-framework.yml`: `frameworkVersion` (default `main`, tag or branch from GitHub), `dryRun` (default `true` = preview without commit)
-
-## sync-framework.yml
-
-Pipeline do synchronizacji plików szkieletu (framework) z repozytorium GitHub (`ChrisPolewiak/AzurePolicy`) do repozytorium ADO. Uruchamiany ręcznie — np. po wydaniu nowej wersji frameworka na GitHubie.
-
-### Działanie
-
-1. Pobiera (`checkout`) repozytorium ADO (`self`) oraz repozytorium GitHub (`framework`) jako `_framework_tmp`.
-2. Kopiuje pliki z GitHub do ADO za pomocą `rsync`, **pomijając** pliki lokalne:
-   - `source/own/` — własne definicje polityk
-   - `configurations/` — lokalna konfiguracja wdrożeń
-   - `scripts/deployment-config.json` — lokalny plik konfiguracyjny
-   - `docs/*.tsv`, `docs/*.csv`, `docs/*.xlsx`, `docs/*.xls` — lokalne eksporty danych
-3. Jeśli `dryRun=false`: commituje i pushuje zmiany do ADO z komunikatem `chore: sync framework <wersja> from GitHub [skip ci]`.
-4. Jeśli `dryRun=true` (domyślnie): wyświetla podgląd zmian bez commitowania.
-
-### Wymagania
-
-- Zmienna `devopsManagedPool` w `configuration/ado-env.yml`.
-- Plik `.pipelines/sync-framework.yml` (gitignored) — skopiuj z `.pipelines/sync-framework.example.yml` i ustaw własną nazwę service connection w polu `endpoint:`.
-- Service connection GitHub w ADO (typ: GitHub) o nazwie zgodnej z `endpoint:` w Twoim `sync-framework.yml`.
-- Agent musi mieć zainstalowane `rsync`.
+- Select the intended upstream artifact run, not simply the latest successful one.
+  A failed B produces no new artifact. Keep C's checkout revision aligned with B.
+- C and D can run independently, but C must run first when D needs new definitions.
+- Authorize the Azure service connection for the relevant pipelines. Azure RBAC is separate;
+  required UAMI roles are in the operator guide.
+- F clones public GitHub anonymously: no GitHub service connection, PAT or `endpoint` is needed.
+  Its agent needs Git and rsync. Review the actual exclusion list before applying changes;
+  the legacy `configurations/` exclusion is not all of `configuration/`.
+- F preserves existing environment-specific YAMLs. Compare them with changed examples manually.

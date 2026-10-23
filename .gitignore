@@ -32,3 +32,6 @@ generated/*.json
 
 # Internal development notes — not for release
 PROGRESS.md
+
+# Local AI working instructions — intentionally not published
+/AGENTS.md

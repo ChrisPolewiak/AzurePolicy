@@ -277,11 +277,11 @@ def main() -> int:
     print(f"Using custom root: {custom_root}")
 
     # Generate individual ARM JSON templates for ALZ policy definitions.
-    pd_dir = generate_policy_definitions_bicep(source_root / "policyDefinitions", bicep_dir)
+    pd_dir = generate_policy_definitions_bicep(source_root / "policyDefinitions", bicep_dir, management_tag=management_tag)
     print(f"Policy definition templates: {pd_dir}")
 
     # Generate individual ARM JSON templates for ALZ policy set definitions.
-    psd_dir = generate_policy_set_definitions_bicep(source_root / "policySetDefinitions", bicep_dir, management_group_id=mg_id)
+    psd_dir = generate_policy_set_definitions_bicep(source_root / "policySetDefinitions", bicep_dir, management_group_id=mg_id, management_tag=management_tag)
     print(f"Policy set definition templates: {psd_dir}")
 
     # Merge custom policy definitions (overrides ALZ files with the same name).

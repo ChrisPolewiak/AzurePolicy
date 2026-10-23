@@ -4,6 +4,83 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.6.0] — 2026-10-23
+
+### Added
+
+- **Rebuild validation** (`scripts/validate_rebuild.py`) checks deployable TSV rows,
+  policy/initiative types, required source files and generated templates, and
+  parameters where a schema is available. Pipeline B reports actionable errors
+  with TSV line references and an Azure DevOps summary. Failed validation blocks
+  publication of the `policy-generated` artifact.
+- **Assignment error summary** collects scope, identity, what-if, deployment and
+  RBAC failures into a final report with Azure DevOps issues and a Markdown summary.
+  What-if failures now return a nonzero exit code.
+- **Assignment timing logs** show UAMI preparation, deployment/what-if, principal
+  lookup, individual RBAC operations and total assignment-loop duration.
+- **Parameter casing regression tests** (`scripts/test_parameter_values.py`).
+
+### Changed
+
+- **Pipeline D run modes** use an explicit mode selector: `deployMode=whatif`
+  (default) runs preview only; `deployMode=deploy` runs preview followed by
+  deployment. `skipValidation=true` skips preview only in deploy mode, not
+  configuration checks. A failed preview blocks deployment; no manual pause is
+  introduced between preview and deployment.
+- **Shared assignment task** moved to
+  `.pipelines/.templates/update-assignments-step.yml`, reused for preview and
+  deployment. Pipeline C and cleanup retain their existing run-mode controls.
+- **Pipeline examples** no longer require a literal `<SUFFIX>` placeholder in
+  pipeline names. An explicit environment suffix remains optional.
+- **AzAdvertizer validation** generates canonical URLs from the definition type
+  and ID for Custom and Built-in rows. The TSV link column is optional and ignored;
+  Own definitions do not require an online lookup. Permanent lookup failures
+  block validation; transient failures are reported as warnings after retries.
+- **Cleanup** uses Bash, Azure CLI and jq to inventory resources before deletion,
+  with paginated Resource Graph queries and live ownership checks. Only resources
+  with the exact configured ownership marker are eligible. Shared identities are
+  protected where visible, and marked orphan UAMIs in the configured identity
+  resource group are included. Deletion proceeds through assignments, RBAC, UAMIs,
+  initiatives and definitions; query or deletion errors stop the operation.
+- **Operator documentation** simplified in Polish and English, with workflow and
+  artifact-selection guidance, validation troubleshooting, cleanup boundaries,
+  and pipeline UAMI roles: Resource Policy Contributor and conditioned Role Based
+  Access Control Administrator at Root/main MG, plus Managed Identity Contributor
+  and Managed Identity Operator at the policy UAMI resource group.
+
+### Fixed
+
+- **Policy parameter strings preserve their exact case** instead of normalizing
+  boolean-like strings to `True`/`False`. This prevents allowed-value failures
+  such as `includeArcMachines=false` becoming the invalid string `False`.
+  Surrounding whitespace trimming and existing array/integer parsing are retained.
+- **Generated ALZ definitions and initiatives receive the configured ownership
+  marker**, allowing cleanup to identify framework-managed copies.
+- **Large cleanup inventories** are merged from files rather than passed as
+  JSON command-line arguments, avoiding jq's `Argument list too long` failure.
+- **Cleanup function failures** propagate to the error trap instead of allowing
+  the script to continue after a failed operation.
+- **UAMI principal lookup** reads the specified identity directly rather than
+  polling the policy assignment. A missing UAMI is reported as an error, without
+  falling back to another identity; system-assigned identity retries are retained.
+
+### Upgrade notes
+
+- Update environment-specific Pipeline D YAML from
+  `.pipelines/update-assignments.example.yml` and include the new shared task.
+  Replace saved `deployPolicies` inputs with `deployMode`; explicitly select
+  `deploy` to apply changes. `whatif` remains the safe default, even when the
+  skip checkbox is selected.
+- Run Pipeline B again to regenerate artifacts after updating the framework,
+  especially for the parameter casing fix. Pipeline D consumes B's artifact
+  and does not regenerate assignments from edited TSV files.
+- Cleanup is list-only unless deletion is explicitly enabled. Older unmarked
+  resources require separate review; Resource Graph visibility limits discovery.
+- Framework sync still excludes the legacy `configurations/` path, not the whole
+  current `configuration/` directory. Review sync changes before applying them.
+
+---
+
 ## [0.5.0] — 2026-06-03
 
 ### Added

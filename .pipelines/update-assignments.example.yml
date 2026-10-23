@@ -14,14 +14,21 @@ pr: none
 #     source: B-rebuild-configuration    (single-env, no suffix)
 
 parameters:
+- name: deployMode
+  type: string
+  default: whatif
+  values:
+  - whatif
+  - deploy
+  displayName: 'Mode: whatif = preview only, deploy = preview and deployment'
+- name: skipValidation
+  type: boolean
+  default: false
+  displayName: 'Skip the What-If stage (only for deployMode=deploy)'
 - name: location
   type: string
   default: germanywestcentral
   displayName: 'Deployment location for tenant deployment metadata'
-- name: deployPolicies
-  type: boolean
-  default: false
-  displayName: 'Deploy policy assignments to Azure (false = what-if only)'
 - name: targetAssignment
   type: string
   default: '*'
@@ -55,41 +62,28 @@ steps:
 - bash: |
     set -euo pipefail
     if [[ -z "$(devopsManagedPool)" ]]; then
-      echo "ERROR: Missing variable 'devopsManagedPool' in configuration/ado-env.yml."
+      echo "##vso[task.logissue type=error]Missing variable 'devopsManagedPool' in configuration/ado-env.yml."
       exit 1
     fi
     if [[ -z "$(serviceConnectionName)" ]]; then
-      echo "ERROR: Missing variable 'serviceConnectionName' in configuration/ado-env.yml."
+      echo "##vso[task.logissue type=error]Missing variable 'serviceConnectionName' in configuration/ado-env.yml."
       exit 1
     fi
     echo "Variable precheck passed."
   displayName: 'Precheck required Library variables'
 
-- task: AzureCLI@2
-  displayName: 'Update policy assignments (what-if + optional deploy)'
-  inputs:
-    azureSubscription: '$(serviceConnectionName)'
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -euo pipefail
-      echo "Azure authenticated context:"
-      az account show --query "{tenantId:tenantId, subscriptionId:id, subscriptionName:name}" -o table
+- ${{ if or(eq(parameters.deployMode, 'whatif'), not(parameters.skipValidation)) }}:
+  - template: .templates/update-assignments-step.yml
+    parameters:
+      location: ${{ parameters.location }}
+      targetAssignment: ${{ parameters.targetAssignment }}
 
-      chmod +x scripts/update-assignments.sh
-      args=(
-        --location '${{ parameters.location }}'
-      )
-
-      if [[ '${{ parameters.targetAssignment }}' != '*' ]]; then
-        args+=(--assignment '${{ parameters.targetAssignment }}')
-      fi
-
-      if [[ '${{ parameters.deployPolicies }}' == 'True' ]]; then
-        args+=(--deploy)
-      fi
-
-      scripts/update-assignments.sh "${args[@]}"
+- ${{ if eq(parameters.deployMode, 'deploy') }}:
+  - template: .templates/update-assignments-step.yml
+    parameters:
+      deploy: true
+      location: ${{ parameters.location }}
+      targetAssignment: ${{ parameters.targetAssignment }}
 
 - bash: |
     set -euo pipefail

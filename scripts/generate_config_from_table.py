@@ -521,14 +521,6 @@ def parse_parameter_value(value: str, type_hint: str) -> object:
                     items.append(part)
         return items
 
-    # Excel often exports boolean-like strings in all caps; Azure Policy string
-    # parameters typically expect 'True'/'False' casing.
-    lowered = v.lower()
-    if lowered == "true":
-        return "True"
-    if lowered == "false":
-        return "False"
-
     return v
 
 

@@ -14,26 +14,26 @@ pr: none
 #     source: B-rebuild-configuration    (single-env, no suffix)
 
 parameters:
-- name: location
-  type: string
-  default: germanywestcentral
-  displayName: 'Deployment location for deployment metadata'
-- name: targetInitiative
-  type: string
-  default: '*'
-  displayName: 'Initiative name to deploy (* = all)'
-- name: targetDefinition
-  type: string
-  default: '*'
-  displayName: 'Policy definition name to deploy (* = all)'
 - name: deployPolicyDefinitions
   type: boolean
   default: true
   displayName: 'Deploy policy definitions phase'
+- name: targetDefinition
+  type: string
+  default: '*'
+  displayName: 'Policy definition name to deploy (* = all)'
 - name: deployInitiatives
   type: boolean
   default: true
   displayName: 'Deploy initiative definitions phase'
+- name: targetInitiative
+  type: string
+  default: '*'
+  displayName: 'Initiative name to deploy (* = all)'
+- name: location
+  type: string
+  default: germanywestcentral
+  displayName: 'Deployment location for deployment metadata'
 
 resources:
   pipelines:

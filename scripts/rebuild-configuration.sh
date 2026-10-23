@@ -34,6 +34,11 @@ for d in bicep/policyDefinitions bicep/policySetDefinitions; do
 done
 echo "✓ ARM JSON templates generated"
 
+# Validate source types, generated templates and links before generating config.
+echo ""
+echo "==> Validating deployment table and AzAdvertizer links..."
+python3 "$SCRIPT_DIR/validate_rebuild.py"
+
 # --- Step 2: Generate config JSON ---
 echo ""
 echo "==> Generating config JSON..."

@@ -24,7 +24,6 @@ Operator guide (processes and workflows): [README.md](README.md)
    - [parameters.json](#parametersjson)
 5. [Templates and Bicep structure](#templates-and-bicep-structure)
 6. [Snapshot version tracking](#snapshot-version-tracking)
-7. [Extension — exemptions](#extension--exemptions)
 
 ---
 
@@ -292,13 +291,18 @@ scripts/cleanup.sh [--delete] [--with-definitions] [--assignment <name>]
 
 | Resource | Discovery method |
 | --- | --- |
-| Policy assignments | `az graph query` on `PolicyResources` filtered by `properties.metadata.assignedBy` |
-| UAMIs (selective) | Extracted from `identity.userAssignedIdentities` of the matched assignment |
-| UAMIs (full) | `az identity list` filtered by tag `managedBy` in configured resource group |
-| Policy definitions | `az policy definition list` filtered by `properties.metadata.managedBy` |
-| Initiatives | `az policy set-definition list` filtered by `properties.metadata.managedBy` |
+| Policy assignments | Paginated Resource Graph REST query on `PolicyResources`; exact `properties.metadata.assignedBy` match |
+| UAMIs (selective) | Referenced by selected assignments, with matching `tags.managedBy`; shared identities excluded |
+| UAMIs (full) | As above, plus marked orphans in the configured subscription/RG, from `Resources` |
+| RBAC assignments | `AuthorizationResources` filtered by removable identities' `principalId` |
+| Policy definitions / initiatives | `PolicyResources` with matching `properties.metadata.managedBy` |
 
 All values are compared against `managementTag` in `configuration/deployment-config.json`.
+
+Requires Azure CLI and jq. Inventory completes before deletion; query/delete failures fail the run.
+Deletion order: assignments, identity RBAC, UAMIs, initiatives, definitions.
+`--assignment` and `--with-definitions` cannot be combined. See the
+[operator guide](README.md#cleanup-preview-review-delete) for scope and visibility limitations.
 
 **Examples:**
 
@@ -320,7 +324,7 @@ scripts/cleanup.sh --assignment AP202604290022 --delete
 
 ## TSV file formats
 
-Full column reference with examples: [docs/TSV-FORMAT.md](docs/TSV-FORMAT.md)
+Full column reference with examples: [TSV format](../configuration/TSV-FORMAT.md)
 
 ---
 
@@ -457,14 +461,3 @@ cat source/.snapshot-version
 ```
 
 The file is updated automatically by the script and should be committed to the repository.
-
----
-
-## Extension — exemptions
-
-To add support for Policy Exemptions:
-
-1. Create `generated/exemptions.json` with an array of exemption objects (analogous to `assignments.json`).
-2. Create `bicep/exemptions.bicep` with a loop over `Microsoft.Authorization/policyExemptions@2022-07-01-preview`.
-3. Add an `exemptions` module to `bicep/assignments.bicep`.
-4. Optionally extend `generate_config_from_table.py` to process an additional Excel worksheet.
