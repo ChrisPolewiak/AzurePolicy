@@ -126,14 +126,6 @@ TMP_ERRORS=$(mktemp /tmp/az-assignment-errors-XXXXXX.jsonl)
 TMP_COMMAND_LOG=$(mktemp /tmp/az-assignment-command-XXXXXX.log)
 trap 'rm -f "$TMP_ASSIGNMENT" "$TMP_PARAMETERSET" "$TMP_ERRORS" "$TMP_COMMAND_LOG"' EXIT
 
-timed_command() {
-  local stage="$1" started=$SECONDS rc=0
-  shift
-  "$@" || rc=$?
-  echo "    TIME [$assignment_name] $stage: $((SECONDS - started))s (exit=$rc)" >&2
-  return "$rc"
-}
-
 record_error() {
   python3 - "$TMP_ERRORS" "$assignment_name" "$assignment_display_name" "$scope_type/$scope_id" "$1" "$2" <<'PY'
 import json
@@ -432,7 +424,6 @@ echo "==> Processing $ASSIGNMENT_COUNT assignments one by one..."
 ASSIGNMENT_INDEX=0
 SUCCESS_COUNT=0
 FAIL_COUNT=0
-PROCESS_STARTED=$SECONDS
 
 while IFS= read -r assignment_json; do
   ASSIGNMENT_INDEX=$((ASSIGNMENT_INDEX + 1))
@@ -479,7 +470,7 @@ while IFS= read -r assignment_json; do
   fi
 
   if [[ "$identity_config_entry" != "null" ]]; then
-    if ! identity_config_entry=$(timed_command UAMI ensure_user_assigned_identity_entry "$identity_config_entry" "$assignment_name" "$scope_type" "$scope_id" "$DEPLOY" 2>"$TMP_COMMAND_LOG"); then
+    if ! identity_config_entry=$(ensure_user_assigned_identity_entry "$identity_config_entry" "$assignment_name" "$scope_type" "$scope_id" "$DEPLOY" 2>"$TMP_COMMAND_LOG"); then
       cat "$TMP_COMMAND_LOG" >&2
       record_error UAMI "Failed to resolve/create user-assigned identity configuration: $(cat "$TMP_COMMAND_LOG")"
       echo "    ✗ Failed to resolve/create user-assigned identity configuration"
@@ -511,18 +502,18 @@ while IFS= read -r assignment_json; do
   )
 
   if [[ "$DEPLOY" == "true" ]]; then
-    if timed_command deployment "${AZ_SCOPE_CMD[@]}" create "${COMMON_ARGS[@]}" --output none 2>&1 | tee "$TMP_COMMAND_LOG"; then
+    if "${AZ_SCOPE_CMD[@]}" create "${COMMON_ARGS[@]}" --output none 2>&1 | tee "$TMP_COMMAND_LOG"; then
       echo "    ✓ Deployed"
 
       if [[ "$role_assignments_json" != "[]" ]]; then
         principal_id=""
         uami_resource_id=$(echo "$identity_config_entry" | python3 -c "import json,sys; e=json.load(sys.stdin); ids=((e.get('identity') or {}).get('userAssignedIdentityResourceIds') or []); print(ids[0] if ids else '')")
         if [[ -n "$uami_resource_id" ]]; then
-          if ! principal_id=$(timed_command principalId az identity show --ids "$uami_resource_id" --query "principalId" -o tsv 2>"$TMP_COMMAND_LOG"); then
+          if ! principal_id=$(az identity show --ids "$uami_resource_id" --query "principalId" -o tsv 2>"$TMP_COMMAND_LOG"); then
             principal_id=""
           fi
         else
-          if ! principal_id=$(timed_command principalId resolve_assignment_principal_id "$assignment_name" "$ASSIGNMENT_SCOPE_PATH" 3 2 2>"$TMP_COMMAND_LOG"); then
+          if ! principal_id=$(resolve_assignment_principal_id "$assignment_name" "$ASSIGNMENT_SCOPE_PATH" 3 2 2>"$TMP_COMMAND_LOG"); then
             principal_id=""
           fi
         fi
@@ -550,11 +541,9 @@ while IFS= read -r assignment_json; do
           )
 
           set +e
-          role_started=$SECONDS
           role_output=$("${role_cmd[@]}" 2>&1)
           role_rc=$?
           set -e
-          echo "    TIME [$assignment_name] RBAC $role_value @ $role_scope: $((SECONDS - role_started))s (exit=$role_rc)"
 
           if [[ "$role_rc" -eq 0 ]]; then
             echo "    ✓ RBAC ensured: $role_value"
@@ -576,7 +565,7 @@ while IFS= read -r assignment_json; do
       FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
   else
-    if timed_command what-if "${AZ_SCOPE_CMD[@]}" what-if "${COMMON_ARGS[@]}" 2>&1 | tee "$TMP_COMMAND_LOG"; then
+    if "${AZ_SCOPE_CMD[@]}" what-if "${COMMON_ARGS[@]}" 2>&1 | tee "$TMP_COMMAND_LOG"; then
       if [[ "$role_assignments_json" != "[]" ]]; then
         echo "    ℹ Role assignments to ensure after deploy:"
         while IFS=$'\t' read -r role_value role_scope; do
@@ -594,7 +583,6 @@ while IFS= read -r assignment_json; do
 done < <(python3 -c "import json,sys; a=json.load(open('generated/assignments.json')); t='''$TARGET_ASSIGNMENT'''.strip(); [print(json.dumps(x)) for x in a if not t or x.get('name')==t]")
 
 echo ""
-echo "TIME total assignment processing: $((SECONDS - PROCESS_STARTED))s"
 report_errors
 if [[ "$DEPLOY" == "true" ]]; then
   echo "==> Done: $SUCCESS_COUNT deployed, $FAIL_COUNT failed (of $ASSIGNMENT_COUNT total)."

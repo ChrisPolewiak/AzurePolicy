@@ -297,7 +297,7 @@ def build_json_payloads(
             # ARM resource name must be ≤24 chars; use InternalID (e.g. ap001) as a
             # stable short resource name and keep the human-readable label as displayName.
             "name": internal_id,
-            "displayName": f"{assignment_name} ({internal_id})"[:128],
+            "displayName": f"{internal_id} - {assignment_name}"[:128],
             "scope": {
                 # Distinguish subscription-scope from management-group-scope assignments.
                 "type": scope_type,

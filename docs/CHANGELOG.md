@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Assignment display name** — generated `displayName` now follows the pattern
+  `<InternalID> - <Assignment Name>` (e.g. `AP202610160001 - polewiak-guardrails_avm-DINE`).
+  The assignment resource `name` and user-assigned identity names are unchanged.
+
+### Removed
+
+- **Assignment timing logs** (`TIME ...` lines) from `scripts/update-assignments.sh`.
+
 ## [0.6.0] — 2026-10-23
 
 ### Added
@@ -18,7 +30,6 @@ All notable changes to this project will be documented in this file.
   What-if failures now return a nonzero exit code.
 - **Assignment timing logs** show UAMI preparation, deployment/what-if, principal
   lookup, individual RBAC operations and total assignment-loop duration.
-- **Parameter casing regression tests** (`scripts/test_parameter_values.py`).
 
 ### Changed
 
