@@ -44,7 +44,7 @@ variables:
 - template: ../configuration/ado-env.yml
 
 pool:
-  name: $(devopsManagedPool)
+  name: $(devops_runner_pool_name)
 
 steps:
 - checkout: self
@@ -61,12 +61,12 @@ steps:
 
 - bash: |
     set -euo pipefail
-    if [[ -z "$(devopsManagedPool)" ]]; then
-      echo "##vso[task.logissue type=error]Missing variable 'devopsManagedPool' in configuration/ado-env.yml."
+    if [[ -z "$(devops_runner_pool_name)" ]]; then
+      echo "##vso[task.logissue type=error]Missing variable 'devops_runner_pool_name' in configuration/ado-env.yml."
       exit 1
     fi
-    if [[ -z "$(serviceConnectionName)" ]]; then
-      echo "##vso[task.logissue type=error]Missing variable 'serviceConnectionName' in configuration/ado-env.yml."
+    if [[ -z "$(devops_service_connection_name)" ]]; then
+      echo "##vso[task.logissue type=error]Missing variable 'devops_service_connection_name' in configuration/ado-env.yml."
       exit 1
     fi
     echo "Variable precheck passed."

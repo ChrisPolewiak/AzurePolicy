@@ -28,7 +28,7 @@ your environment configuration, workbook and custom definitions belong in the de
    (`managementTag`) and the subscription/RG for policy UAMIs.
 2. Create that identity RG in advance.
 3. Copy [ado-env.example.yml](../configuration/ado-env.example.yml) to `configuration/ado-env.yml`.
-   Set `devopsManagedPool` and `serviceConnectionName`.
+   Set `devops_runner_pool_name` and `devops_service_connection_name`.
 4. Configure an Azure Resource Manager service connection using the pipeline UAMI and
    workload identity federation. Authorize it for the pipelines and grant the roles below.
 5. Copy the six [pipeline examples](../.pipelines/) from `*.example.yml` to `*.yml`

@@ -21,5 +21,5 @@ The file is in `.gitignore` — it stays local to your ADO repository and is nev
 
 | Variable | Description |
 | --- | --- |
-| `devopsManagedPool` | ADO agent pool name used by all pipelines |
-| `serviceConnectionName` | Azure DevOps service connection name for `AzureCLI@2` tasks |
+| `devops_runner_pool_name` | ADO agent pool name used by all pipelines |
+| `devops_service_connection_name` | Azure DevOps service connection name for `AzureCLI@2` tasks |

@@ -45,7 +45,7 @@ variables:
 - template: ../configuration/ado-env.yml
 
 pool:
-  name: $(devopsManagedPool)
+  name: $(devops_runner_pool_name)
 
 steps:
 - checkout: self
@@ -63,12 +63,12 @@ steps:
 
 - bash: |
     set -euo pipefail
-    if [[ -z "$(devopsManagedPool)" ]]; then
-      echo "ERROR: Missing variable 'devopsManagedPool' in configuration/ado-env.yml."
+    if [[ -z "$(devops_runner_pool_name)" ]]; then
+      echo "ERROR: Missing variable 'devops_runner_pool_name' in configuration/ado-env.yml."
       exit 1
     fi
-    if [[ -z "$(serviceConnectionName)" ]]; then
-      echo "ERROR: Missing variable 'serviceConnectionName' in configuration/ado-env.yml."
+    if [[ -z "$(devops_service_connection_name)" ]]; then
+      echo "ERROR: Missing variable 'devops_service_connection_name' in configuration/ado-env.yml."
       exit 1
     fi
     echo "Variable precheck passed."
@@ -77,7 +77,7 @@ steps:
 - task: AzureCLI@2
   displayName: 'Deploy initiative definitions to Management Group'
   inputs:
-    azureSubscription: '$(serviceConnectionName)'
+    azureSubscription: '$(devops_service_connection_name)'
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |

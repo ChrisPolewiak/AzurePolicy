@@ -28,7 +28,7 @@ konfiguracja środowiska, Excel i własne definicje należą do repo wdrożeniow
    (`managementTag`) oraz subskrypcję/RG dla UAMI polityk.
 2. Utwórz wcześniej tę RG dla tożsamości.
 3. Skopiuj [ado-env.example.yml](../configuration/ado-env.example.yml) do `configuration/ado-env.yml`.
-   Uzupełnij `devopsManagedPool` i `serviceConnectionName`.
+   Uzupełnij `devops_runner_pool_name` i `devops_service_connection_name`.
 4. Skonfiguruj service connection Azure Resource Manager z UAMI pipeline'u i workload identity
    federation. Autoryzuj ją dla pipeline'ów i nadaj role z tabeli poniżej.
 5. Skopiuj sześć [przykładów pipeline'ów](../.pipelines/) z `*.example.yml` do `*.yml`

@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **ADO environment variables renamed** in `configuration/ado-env.yml` and all pipelines:
+  `devopsManagedPool` → `devops_runner_pool_name`,
+  `serviceConnectionName` → `devops_service_connection_name`.
+  Update your local `configuration/ado-env.yml` accordingly.
 - **Assignment display name** — generated `displayName` now follows the pattern
   `<InternalID> - <Assignment Name>` (e.g. `AP202610160001 - polewiak-guardrails_avm-DINE`).
   The assignment resource `name` and user-assigned identity names are unchanged.
@@ -168,7 +172,7 @@ All notable changes to this project will be documented in this file.
   and the file is never overwritten by framework syncs.
   `pipelines/sync-framework.yml` added to `.gitignore` and untracked from git.
 - **`configuration/ado-env.example.yml`** — committed template for the gitignored `configuration/ado-env.yml`.
-  Contains `devopsManagedPool` and `serviceConnectionName`.
+  Contains `devops_runner_pool_name` and `devops_service_connection_name`.
   Replaces the former ADO Library Variable Group `AzureDevOps` pattern.
   `ado-env.yml` is loaded by all pipelines via `variables: - template: ../configuration/ado-env.yml`
   and is excluded from `sync-framework.yml` rsync (lives only in the ADO repo).

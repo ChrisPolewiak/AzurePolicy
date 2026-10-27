@@ -29,7 +29,7 @@ variables:
 - template: ../configuration/ado-env.yml
 
 pool:
-  name: $(devopsManagedPool)
+  name: $(devops_runner_pool_name)
 
 steps:
 - checkout: self

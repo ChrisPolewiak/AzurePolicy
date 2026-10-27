@@ -14,9 +14,9 @@ variables:
 
   # Name of the Azure DevOps agent pool used by all pipelines.
   # Example: 'Default', 'ubuntu-latest' (Microsoft-hosted), or your self-hosted pool name.
-  devopsManagedPool: 'YOUR_AGENT_POOL_NAME'
+  devops_runner_pool_name: 'YOUR_AGENT_POOL_NAME'
 
   # Name of the Azure DevOps service connection used by AzureCLI@2 tasks.
   # Must have Contributor + User Access Administrator rights at tenant/MG scope.
   # Created in: ADO Project Settings → Service connections → New service connection → Azure Resource Manager.
-  serviceConnectionName: 'YOUR_AZURE_SERVICE_CONNECTION_NAME'
+  devops_service_connection_name: 'YOUR_AZURE_SERVICE_CONNECTION_NAME'
